@@ -28,6 +28,7 @@ type User struct {
 // General represents a warrior/general in the game
 type General struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
+	ExcelID      int       `gorm:"uniqueIndex" json:"excel_id"` // Original ID from Excel
 	Name         string    `gorm:"size:50;not null" json:"name"`
 	Command      int       `json:"command"`                  // 统率
 	Force        int       `json:"force"`                    // 武力
@@ -38,6 +39,12 @@ type General struct {
 	PoolType     string    `gorm:"size:20" json:"pool_type"` // guarantee/normal/draft/second/bigcore
 	Tier         int       `json:"tier"`                     // Tier level (1-5)
 	Skills       string    `gorm:"size:255" json:"skills"`   // Comma-separated skills
+	Spear        string    `gorm:"size:10" json:"spear"`     // 枪适性
+	Halberd      string    `gorm:"size:10" json:"halberd"`   // 戟适性
+	Crossbow     string    `gorm:"size:10" json:"crossbow"`  // 弩适性
+	Cavalry      string    `gorm:"size:10" json:"cavalry"`   // 骑适性
+	Soldier      string    `gorm:"size:10" json:"soldier"`   // 兵适性
+	Affinity     int       `json:"affinity"`                 // 相性
 	OwnerID      *uint     `json:"owner_id"`                 // Current owner
 	Owner        *User     `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
 	IsAvailable  bool      `gorm:"default:true" json:"is_available"` // Available in pool
@@ -49,11 +56,12 @@ type General struct {
 // Treasure represents an item/treasure in the game
 type Treasure struct {
 	ID          uint      `gorm:"primaryKey" json:"id"`
+	ExcelID     int       `gorm:"uniqueIndex" json:"excel_id"` // Original ID from Excel
 	Name        string    `gorm:"size:50;not null" json:"name"`
 	Type        string    `gorm:"size:20" json:"type"`    // weapon/book/horse/accessory
 	Value       int       `json:"value"`                  // Value/price
-	Effect      string    `gorm:"size:255" json:"effect"` // Effect description
-	Skill       string    `gorm:"size:50" json:"skill"`   // Special skill granted
+	Effect      string    `gorm:"size:255" json:"effect"` // Effect description (如 统+5)
+	Skill       string    `gorm:"size:50" json:"skill"`   // Special skill granted (特技)
 	OwnerID     *uint     `json:"owner_id"`               // Current owner
 	Owner       *User     `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
 	IsAvailable bool      `gorm:"default:true" json:"is_available"`

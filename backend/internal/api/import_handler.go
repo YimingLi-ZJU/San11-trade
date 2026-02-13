@@ -64,18 +64,15 @@ func parseExcelFile(filePath string) (*ImportResult, error) {
 	result := &ImportResult{}
 	db := database.GetDB()
 
-	// Parse generals from "武将" sheet
-	if rows, err := f.GetRows("武将"); err == nil && len(rows) > 1 {
-		for i, row := range rows[1:] { // Skip header row
-			if len(row) < 6 {
-				continue
-			}
-
-			general := parseGeneralRow(row, i+1)
+	// Parse generals from "总表" sheet
+	// Format: 序号 | 姓名 | 价值 | 统御 | 武力 | 智力 | 政治 | 魅力 | 五维 | 相性 | 枪 | 戟 | 弩 | 骑 | 兵 | ...
+	if rows, err := f.GetRows("总表"); err == nil && len(rows) > 1 {
+		for _, row := range rows[1:] { // Skip header row
+			general := parseGeneralRowV2(row)
 			if general != nil {
-				// Check if exists
+				// Check if exists by ExcelID
 				var existing model.General
-				if db.Where("name = ?", general.Name).First(&existing).Error == nil {
+				if db.Where("excel_id = ?", general.ExcelID).First(&existing).Error == nil {
 					// Update existing
 					db.Model(&existing).Updates(general)
 				} else {
@@ -87,229 +84,310 @@ func parseExcelFile(filePath string) (*ImportResult, error) {
 		}
 	}
 
-	// Try alternative sheet names
-	alternativeSheets := []string{"将领", "全部武将", "武将列表", "武将池"}
-	for _, sheetName := range alternativeSheets {
-		if rows, err := f.GetRows(sheetName); err == nil && len(rows) > 1 && result.GeneralsCount == 0 {
-			for i, row := range rows[1:] {
-				if len(row) < 6 {
-					continue
-				}
-				general := parseGeneralRow(row, i+1)
-				if general != nil {
-					var existing model.General
-					if db.Where("name = ?", general.Name).First(&existing).Error == nil {
-						db.Model(&existing).Updates(general)
-					} else {
-						db.Create(general)
-					}
-					result.GeneralsCount++
-				}
-			}
-			break
-		}
-	}
-
 	// Parse treasures from "宝物" sheet
-	treasureSheets := []string{"宝物", "道具", "物品"}
-	for _, sheetName := range treasureSheets {
-		if rows, err := f.GetRows(sheetName); err == nil && len(rows) > 1 {
-			for _, row := range rows[1:] {
-				if len(row) < 3 {
-					continue
+	// Format: 序号 | 名称 | 种类 | 价值 | 特技 | 属性
+	if rows, err := f.GetRows("宝物"); err == nil && len(rows) > 1 {
+		for _, row := range rows[1:] { // Skip header row
+			treasure := parseTreasureRowV2(row)
+			if treasure != nil {
+				// Check if exists by ExcelID
+				var existing model.Treasure
+				if db.Where("excel_id = ?", treasure.ExcelID).First(&existing).Error == nil {
+					// Update existing
+					db.Model(&existing).Updates(treasure)
+				} else {
+					// Create new
+					db.Create(treasure)
 				}
-				treasure := parseTreasureRow(row)
-				if treasure != nil {
-					var existing model.Treasure
-					if db.Where("name = ?", treasure.Name).First(&existing).Error == nil {
-						db.Model(&existing).Updates(treasure)
-					} else {
-						db.Create(treasure)
-					}
-					result.TreasuresCount++
-				}
+				result.TreasuresCount++
 			}
-			break
 		}
 	}
 
-	// Parse clubs from "俱乐部" or "国策" sheet
-	clubSheets := []string{"俱乐部", "国策", "势力"}
-	for _, sheetName := range clubSheets {
-		if rows, err := f.GetRows(sheetName); err == nil && len(rows) > 1 {
-			for _, row := range rows[1:] {
-				if len(row) < 2 {
-					continue
-				}
-				club := parseClubRow(row)
-				if club != nil {
-					var existing model.Club
-					if db.Where("name = ?", club.Name).First(&existing).Error == nil {
-						db.Model(&existing).Updates(club)
-					} else {
-						db.Create(club)
-					}
-					result.ClubsCount++
-				}
+	// Parse clubs from "俱乐部" sheet
+	// Complex structure: each club spans multiple rows
+	if rows, err := f.GetRows("俱乐部"); err == nil && len(rows) > 4 {
+		clubs := parseClubsV2(rows)
+		for _, club := range clubs {
+			var existing model.Club
+			if db.Where("name = ?", club.Name).First(&existing).Error == nil {
+				// Update existing
+				db.Model(&existing).Updates(club)
+			} else {
+				// Create new
+				db.Create(club)
 			}
-			break
+			result.ClubsCount++
 		}
 	}
 
 	return result, nil
 }
 
-// parseGeneralRow parses a general from Excel row
-// Expected format: 姓名, 统率, 武力, 智力, 政治, 魅力, [薪资], [池类型], [档次], [特技]
-func parseGeneralRow(row []string, index int) *model.General {
-	if len(row) < 6 || strings.TrimSpace(row[0]) == "" {
+// parseGeneralRowV2 parses a general from Excel row
+// Format: 序号 | 姓名 | 价值 | 统御 | 武力 | 智力 | 政治 | 魅力 | 五维 | 相性 | 枪 | 戟 | 弩 | 骑 | 兵 | ...
+func parseGeneralRowV2(row []string) *model.General {
+	if len(row) < 8 {
 		return nil
 	}
 
-	name := strings.TrimSpace(row[0])
-	command, _ := strconv.Atoi(strings.TrimSpace(row[1]))
-	force, _ := strconv.Atoi(strings.TrimSpace(row[2]))
-	intelligence, _ := strconv.Atoi(strings.TrimSpace(row[3]))
-	politics, _ := strconv.Atoi(strings.TrimSpace(row[4]))
-	charm, _ := strconv.Atoi(strings.TrimSpace(row[5]))
+	// Column A: 序号 (ExcelID)
+	excelID, err := strconv.Atoi(strings.TrimSpace(row[0]))
+	if err != nil || excelID <= 0 {
+		return nil
+	}
+
+	// Column B: 姓名
+	name := strings.TrimSpace(row[1])
+	if name == "" || name == "姓名" {
+		return nil // Skip header or empty rows
+	}
+
+	// Column C: 价值 (作为薪资)
+	salary, _ := strconv.Atoi(strings.TrimSpace(row[2]))
+
+	// Columns D-H: 统御/武力/智力/政治/魅力
+	command, _ := strconv.Atoi(strings.TrimSpace(row[3]))
+	force, _ := strconv.Atoi(strings.TrimSpace(row[4]))
+	intelligence, _ := strconv.Atoi(strings.TrimSpace(row[5]))
+	politics, _ := strconv.Atoi(strings.TrimSpace(row[6]))
+	charm, _ := strconv.Atoi(strings.TrimSpace(row[7]))
 
 	general := &model.General{
+		ExcelID:      excelID,
 		Name:         name,
+		Salary:       salary,
 		Command:      command,
 		Force:        force,
 		Intelligence: intelligence,
 		Politics:     politics,
 		Charm:        charm,
-		PoolType:     "normal", // Default pool type
+		PoolType:     "normal", // Default, will be updated based on which sheet
 		Tier:         3,        // Default tier
 		IsAvailable:  true,
 	}
 
-	// Parse optional fields
-	if len(row) > 6 && row[6] != "" {
-		general.Salary, _ = strconv.Atoi(strings.TrimSpace(row[6]))
-	} else {
-		// Calculate salary based on stats
-		general.Salary = calculateSalary(command, force, intelligence, politics, charm)
-	}
-
-	if len(row) > 7 && row[7] != "" {
-		general.PoolType = normalizePoolType(strings.TrimSpace(row[7]))
-	}
-
-	if len(row) > 8 && row[8] != "" {
-		general.Tier, _ = strconv.Atoi(strings.TrimSpace(row[8]))
-	}
-
+	// Column J: 相性 (index 9)
 	if len(row) > 9 && row[9] != "" {
-		general.Skills = strings.TrimSpace(row[9])
+		general.Affinity, _ = strconv.Atoi(strings.TrimSpace(row[9]))
+	}
+
+	// Columns K-O: 枪/戟/弩/骑/兵 (indices 10-14)
+	if len(row) > 10 && row[10] != "" {
+		general.Spear = strings.TrimSpace(row[10])
+	}
+	if len(row) > 11 && row[11] != "" {
+		general.Halberd = strings.TrimSpace(row[11])
+	}
+	if len(row) > 12 && row[12] != "" {
+		general.Crossbow = strings.TrimSpace(row[12])
+	}
+	if len(row) > 13 && row[13] != "" {
+		general.Cavalry = strings.TrimSpace(row[13])
+	}
+	if len(row) > 14 && row[14] != "" {
+		general.Soldier = strings.TrimSpace(row[14])
+	}
+
+	// Try to get skills from later columns (might be in different positions)
+	// Column P onwards might have skills/特技
+	if len(row) > 15 && row[15] != "" {
+		general.Skills = strings.TrimSpace(row[15])
 	}
 
 	return general
 }
 
-// calculateSalary calculates salary based on stats
-func calculateSalary(command, force, intelligence, politics, charm int) int {
-	// Simple formula: average of top 3 stats
-	stats := []int{command, force, intelligence, politics, charm}
-	// Sort descending
-	for i := 0; i < len(stats)-1; i++ {
-		for j := i + 1; j < len(stats); j++ {
-			if stats[j] > stats[i] {
-				stats[i], stats[j] = stats[j], stats[i]
-			}
-		}
-	}
-	avg := (stats[0] + stats[1] + stats[2]) / 3
-
-	// Map to salary ranges
-	switch {
-	case avg >= 95:
-		return 50
-	case avg >= 90:
-		return 40
-	case avg >= 85:
-		return 30
-	case avg >= 80:
-		return 25
-	case avg >= 75:
-		return 20
-	case avg >= 70:
-		return 15
-	default:
-		return 10
-	}
-}
-
-// normalizePoolType normalizes pool type names
-func normalizePoolType(poolType string) string {
-	poolType = strings.ToLower(poolType)
-	switch {
-	case strings.Contains(poolType, "保底"):
-		return "guarantee"
-	case strings.Contains(poolType, "普通"):
-		return "normal"
-	case strings.Contains(poolType, "选秀"):
-		return "draft"
-	case strings.Contains(poolType, "二抽"):
-		return "second"
-	case strings.Contains(poolType, "大核"):
-		return "bigcore"
-	default:
-		return poolType
-	}
-}
-
-// parseTreasureRow parses a treasure from Excel row
-// Expected format: 名称, 类型, [价值], [效果], [特技]
-func parseTreasureRow(row []string) *model.Treasure {
-	if len(row) < 2 || strings.TrimSpace(row[0]) == "" {
+// parseTreasureRowV2 parses a treasure from Excel row
+// Format: 序号 | 名称 | 种类 | 价值 | 特技 | 属性
+func parseTreasureRowV2(row []string) *model.Treasure {
+	if len(row) < 3 {
 		return nil
 	}
 
+	// Column A: 序号 (ExcelID)
+	excelID, err := strconv.Atoi(strings.TrimSpace(row[0]))
+	if err != nil || excelID <= 0 {
+		return nil
+	}
+
+	// Column B: 名称
+	name := strings.TrimSpace(row[1])
+	if name == "" || name == "名称" {
+		return nil // Skip header or empty rows
+	}
+
 	treasure := &model.Treasure{
-		Name:        strings.TrimSpace(row[0]),
-		Type:        strings.TrimSpace(row[1]),
+		ExcelID:     excelID,
+		Name:        name,
 		IsAvailable: true,
 	}
 
+	// Column C: 种类
 	if len(row) > 2 && row[2] != "" {
-		treasure.Value, _ = strconv.Atoi(strings.TrimSpace(row[2]))
+		treasure.Type = strings.TrimSpace(row[2])
 	}
 
+	// Column D: 价值
 	if len(row) > 3 && row[3] != "" {
-		treasure.Effect = strings.TrimSpace(row[3])
+		treasure.Value, _ = strconv.Atoi(strings.TrimSpace(row[3]))
 	}
 
+	// Column E: 特技
 	if len(row) > 4 && row[4] != "" {
 		treasure.Skill = strings.TrimSpace(row[4])
+	}
+
+	// Column F: 属性 (如 "统+5")
+	if len(row) > 5 && row[5] != "" {
+		treasure.Effect = strings.TrimSpace(row[5])
 	}
 
 	return treasure
 }
 
-// parseClubRow parses a club from Excel row
-// Expected format: 名称, 描述, [国策], [底价]
-func parseClubRow(row []string) *model.Club {
-	if len(row) < 1 || strings.TrimSpace(row[0]) == "" {
-		return nil
+// parseClubsV2 parses clubs from the complex "俱乐部" sheet structure
+// Structure:
+//
+//	Row with number: "1", "条件", "效果"  -> marks start of a new club section
+//	Next row: "俱乐部名称", "", "基础效果"
+//	Following rows: "", "条件N", "效果N"  -> until empty row or next club section
+func parseClubsV2(rows [][]string) []*model.Club {
+	var clubs []*model.Club
+
+	i := 0
+	for i < len(rows) {
+		row := rows[i]
+
+		// Look for club name row pattern:
+		// First column is club name (Chinese), second column is empty or has content
+		// Club names are typically Chinese like "AC米兰", "国际米兰" etc.
+		if len(row) > 0 {
+			firstCell := strings.TrimSpace(row[0])
+
+			// Check if this is a club name row (not a number, not empty, not "备注", not just "条件")
+			if isClubName(firstCell) {
+				club := &model.Club{
+					Name: firstCell,
+				}
+
+				// Get base effect from column C (index 2)
+				if len(row) > 2 && row[2] != "" {
+					club.Description = strings.TrimSpace(row[2])
+				}
+
+				// Collect all policies for this club
+				var policies []string
+				if club.Description != "" {
+					policies = append(policies, "基础效果: "+club.Description)
+				}
+
+				// Look at following rows for conditions and effects
+				j := i + 1
+				for j < len(rows) {
+					nextRow := rows[j]
+					if len(nextRow) < 3 {
+						j++
+						continue
+					}
+
+					nextFirst := strings.TrimSpace(nextRow[0])
+
+					// Stop if we hit the next club section (number + "条件" + "效果")
+					// or another club name
+					if isClubName(nextFirst) || isClubSectionHeader(nextRow) {
+						break
+					}
+
+					// Empty first column means this is a condition row
+					if nextFirst == "" || nextFirst == "条件" {
+						condition := strings.TrimSpace(nextRow[1])
+						effect := ""
+						if len(nextRow) > 2 {
+							effect = strings.TrimSpace(nextRow[2])
+						}
+
+						if condition != "" && condition != "条件" {
+							policyLine := fmt.Sprintf("条件: %s => 效果: %s", condition, effect)
+							policies = append(policies, policyLine)
+						}
+					}
+
+					j++
+				}
+
+				// Join all policies
+				club.Policy = strings.Join(policies, "\n")
+
+				clubs = append(clubs, club)
+				i = j
+				continue
+			}
+		}
+
+		i++
 	}
 
-	club := &model.Club{
-		Name: strings.TrimSpace(row[0]),
+	return clubs
+}
+
+// isClubName checks if a string looks like a club name
+func isClubName(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
 	}
 
-	if len(row) > 1 && row[1] != "" {
-		club.Description = strings.TrimSpace(row[1])
+	// Skip known non-club values
+	skipValues := []string{
+		"备注", "条件", "效果", "组别", "1档", "2档", "3档", "4档",
+		"玩家", "A", "B", "C", "D", "E", "F", "G", "H",
+	}
+	for _, skip := range skipValues {
+		if s == skip {
+			return false
+		}
 	}
 
-	if len(row) > 2 && row[2] != "" {
-		club.Policy = strings.TrimSpace(row[2])
+	// Skip if it starts with a number followed by specific patterns
+	if _, err := strconv.Atoi(s); err == nil {
+		return false
 	}
 
-	if len(row) > 3 && row[3] != "" {
-		club.BasePrice, _ = strconv.Atoi(strings.TrimSpace(row[3]))
+	// Skip if it starts with "1." "2." etc.
+	if len(s) > 1 && s[0] >= '1' && s[0] <= '9' && s[1] == '.' {
+		return false
 	}
 
-	return club
+	// Club names typically contain Chinese characters
+	// and are not purely numeric or single letters
+	if len(s) >= 2 {
+		// Check if contains Chinese characters
+		for _, r := range s {
+			if r >= 0x4E00 && r <= 0x9FFF {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// isClubSectionHeader checks if a row is a club section header like "1", "条件", "效果"
+func isClubSectionHeader(row []string) bool {
+	if len(row) < 3 {
+		return false
+	}
+
+	first := strings.TrimSpace(row[0])
+	second := strings.TrimSpace(row[1])
+
+	// Check if first is a number and second is "条件"
+	if _, err := strconv.Atoi(first); err == nil {
+		if second == "条件" {
+			return true
+		}
+	}
+
+	return false
 }
