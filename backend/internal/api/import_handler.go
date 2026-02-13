@@ -40,24 +40,28 @@ func ImportData(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":   "数据导入成功",
-		"generals":  result.GeneralsCount,
-		"treasures": result.TreasuresCount,
-		"cities":    result.CitiesCount,
-		"clubs":     result.ClubsCount,
-		"policies":  result.PoliciesCount,
-		"rules":     result.RulesCount,
+		"message":           "数据导入成功",
+		"generals":          result.GeneralsCount,
+		"treasures":         result.TreasuresCount,
+		"cities":            result.CitiesCount,
+		"clubs":             result.ClubsCount,
+		"policies":          result.PoliciesCount,
+		"rules":             result.RulesCount,
+		"initial_guarantee": result.InitialGuaranteeCount,
+		"initial_normal":    result.InitialNormalCount,
 	})
 }
 
 // ImportResult holds import statistics
 type ImportResult struct {
-	GeneralsCount  int
-	TreasuresCount int
-	CitiesCount    int
-	ClubsCount     int
-	PoliciesCount  int
-	RulesCount     int
+	GeneralsCount         int
+	TreasuresCount        int
+	CitiesCount           int
+	ClubsCount            int
+	PoliciesCount         int
+	RulesCount            int
+	InitialGuaranteeCount int
+	InitialNormalCount    int
 }
 
 // parseExcelFile parses the Excel file and imports data
@@ -134,6 +138,38 @@ func parseExcelFile(filePath string) (*ImportResult, error) {
 		result.RulesCount = parseGameRules(rows, db)
 	}
 
+	// 6. Parse initial draw guarantee pool from "初抽保底" sheet
+	if rows, err := f.GetRows("初抽保底"); err == nil && len(rows) > 1 {
+		for _, row := range rows[1:] { // Skip header row
+			general := parseInitialDrawGeneralRow(row, "initial_guarantee")
+			if general != nil {
+				var existing model.General
+				if db.Where("excel_id = ?", general.ExcelID).First(&existing).Error == nil {
+					db.Model(&existing).Updates(general)
+				} else {
+					db.Create(general)
+				}
+				result.InitialGuaranteeCount++
+			}
+		}
+	}
+
+	// 7. Parse initial draw normal pool from "初抽剩余" sheet
+	if rows, err := f.GetRows("初抽剩余"); err == nil && len(rows) > 1 {
+		for _, row := range rows[1:] { // Skip header row
+			general := parseInitialDrawGeneralRow(row, "initial_normal")
+			if general != nil {
+				var existing model.General
+				if db.Where("excel_id = ?", general.ExcelID).First(&existing).Error == nil {
+					db.Model(&existing).Updates(general)
+				} else {
+					db.Create(general)
+				}
+				result.InitialNormalCount++
+			}
+		}
+	}
+
 	return result, nil
 }
 
@@ -176,6 +212,103 @@ func parseGeneralRow(row []string) *model.General {
 		Politics:     politics,
 		Charm:        charm,
 		PoolType:     "normal",
+		Tier:         3,
+		IsAvailable:  true,
+	}
+
+	// Column J: 相性 (index 9)
+	if len(row) > 9 && row[9] != "" {
+		general.Affinity, _ = strconv.Atoi(strings.TrimSpace(row[9]))
+	}
+
+	// Columns K-P: 枪/戟/弩/骑/兵/水 (indices 10-15)
+	if len(row) > 10 {
+		general.Spear = strings.TrimSpace(row[10])
+	}
+	if len(row) > 11 {
+		general.Halberd = strings.TrimSpace(row[11])
+	}
+	if len(row) > 12 {
+		general.Crossbow = strings.TrimSpace(row[12])
+	}
+	if len(row) > 13 {
+		general.Cavalry = strings.TrimSpace(row[13])
+	}
+	if len(row) > 14 {
+		general.Soldier = strings.TrimSpace(row[14])
+	}
+	if len(row) > 15 {
+		general.Water = strings.TrimSpace(row[15])
+	}
+
+	// Column Q: 特技 (index 16)
+	if len(row) > 16 {
+		general.Skills = strings.TrimSpace(row[16])
+	}
+
+	// Column R: 义理 (index 17)
+	if len(row) > 17 {
+		general.Morality = strings.TrimSpace(row[17])
+	}
+
+	// Column S: 野望 (index 18)
+	if len(row) > 18 {
+		general.Ambition = strings.TrimSpace(row[18])
+	}
+
+	// Column T: 性格 (index 19)
+	if len(row) > 19 {
+		general.Personality = strings.TrimSpace(row[19])
+	}
+
+	// Column V: 改动 (index 21)
+	if len(row) > 21 {
+		general.Note = strings.TrimSpace(row[21])
+	}
+
+	return general
+}
+
+// parseInitialDrawGeneralRow parses a general from initial draw Excel sheet
+// Format: 序号|姓名|价值|统御|武力|智力|政治|魅力|... (same as 总表)
+// poolType should be "initial_guarantee" or "initial_normal"
+func parseInitialDrawGeneralRow(row []string, poolType string) *model.General {
+	if len(row) < 8 {
+		return nil
+	}
+
+	// Column A: 序号 (ExcelID)
+	excelID, err := strconv.Atoi(strings.TrimSpace(row[0]))
+	if err != nil || excelID <= 0 {
+		return nil
+	}
+
+	// Column B: 姓名
+	name := strings.TrimSpace(row[1])
+	if name == "" || name == "姓名" {
+		return nil
+	}
+
+	// Column C: 价值 (薪资)
+	salary, _ := strconv.Atoi(strings.TrimSpace(row[2]))
+
+	// Columns D-H: 统御/武力/智力/政治/魅力 (indices 3-7)
+	command, _ := strconv.Atoi(strings.TrimSpace(row[3]))
+	force, _ := strconv.Atoi(strings.TrimSpace(row[4]))
+	intelligence, _ := strconv.Atoi(strings.TrimSpace(row[5]))
+	politics, _ := strconv.Atoi(strings.TrimSpace(row[6]))
+	charm, _ := strconv.Atoi(strings.TrimSpace(row[7]))
+
+	general := &model.General{
+		ExcelID:      excelID,
+		Name:         name,
+		Salary:       salary,
+		Command:      command,
+		Force:        force,
+		Intelligence: intelligence,
+		Politics:     politics,
+		Charm:        charm,
+		PoolType:     poolType,
 		Tier:         3,
 		IsAvailable:  true,
 	}

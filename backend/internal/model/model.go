@@ -48,7 +48,7 @@ type General struct {
 	Ambition     string    `gorm:"size:20" json:"ambition"`    // 野望
 	Personality  string    `gorm:"size:20" json:"personality"` // 性格
 	Note         string    `gorm:"size:500" json:"note"`       // 改动说明
-	PoolType     string    `gorm:"size:20" json:"pool_type"`   // guarantee/normal/draft/second/bigcore
+	PoolType     string    `gorm:"size:20" json:"pool_type"`   // guarantee/normal/draft/second/bigcore/initial_guarantee/initial_normal
 	Tier         int       `json:"tier"`                       // Tier level (1-5)
 	OwnerID      *uint     `json:"owner_id"`                   // Current owner
 	Owner        *User     `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
@@ -163,7 +163,7 @@ type DrawRecord struct {
 	User      User      `gorm:"foreignKey:UserID" json:"user"`
 	GeneralID uint      `gorm:"not null" json:"general_id"`
 	General   General   `gorm:"foreignKey:GeneralID" json:"general"`
-	DrawType  string    `gorm:"size:20" json:"draw_type"` // guarantee/normal
+	DrawType  string    `gorm:"size:20" json:"draw_type"` // guarantee/normal/initial_guarantee/initial_normal
 	CreatedAt time.Time `json:"created_at"`
 }
 

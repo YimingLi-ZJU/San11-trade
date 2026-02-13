@@ -18,6 +18,7 @@
             <el-form-item label="切换阶段">
               <el-select v-model="newPhase" placeholder="选择阶段" style="width: 100%">
                 <el-option label="报名阶段" value="signup" />
+                <el-option label="初抽阶段" value="initial_draw" />
                 <el-option label="保底抽将" value="guarantee_draw" />
                 <el-option label="普通抽将" value="normal_draw" />
                 <el-option label="选秀阶段" value="draft" />

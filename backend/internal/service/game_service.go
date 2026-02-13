@@ -32,6 +32,7 @@ func SetGamePhase(phaseName string, roundNumber int, draftRound int) error {
 
 	validPhases := map[string]bool{
 		"signup":         true,
+		"initial_draw":   true,
 		"guarantee_draw": true,
 		"normal_draw":    true,
 		"draft":          true,

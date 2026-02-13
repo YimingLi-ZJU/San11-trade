@@ -67,6 +67,14 @@ export const drawApi = {
   draftPick: (generalId) => api.post('/draft/pick', { general_id: generalId })
 }
 
+// Initial Draw APIs
+export const initialDrawApi = {
+  draw: () => api.post('/initial-draw'),
+  getStatus: () => api.get('/initial-draw/status'),
+  getResults: () => api.get('/initial-draw/results'),
+  getPool: (type) => api.get(`/initial-draw/pool${type ? '?type=' + type : ''}`)
+}
+
 // Asset APIs
 export const assetApi = {
   getAllGenerals: () => api.get('/generals'),

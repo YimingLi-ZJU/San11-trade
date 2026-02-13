@@ -151,6 +151,12 @@ func SetupRouter() *gin.Engine {
 				game.POST("/draw/normal", NormalDraw)
 				game.GET("/draw/pool/:type", GetDrawPool)
 
+				// Initial draw routes
+				game.POST("/initial-draw", InitialDraw)
+				game.GET("/initial-draw/status", GetInitialDrawStatus)
+				game.GET("/initial-draw/results", GetAllInitialDrawResults)
+				game.GET("/initial-draw/pool", GetInitialDrawPool)
+
 				// Draft routes
 				game.GET("/draft/pool", GetDraftPool)
 				game.POST("/draft/pick", DraftPick)

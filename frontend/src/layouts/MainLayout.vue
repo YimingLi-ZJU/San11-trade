@@ -52,6 +52,9 @@
               <el-icon><Opportunity /></el-icon>
               <span>游戏</span>
             </template>
+            <el-menu-item index="/initial-draw">
+              <el-icon><Aim /></el-icon>初抽
+            </el-menu-item>
             <el-menu-item index="/draw">
               <el-icon><MagicStick /></el-icon>抽将
             </el-menu-item>
