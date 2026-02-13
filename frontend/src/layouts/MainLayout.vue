@@ -49,7 +49,7 @@
           
           <el-sub-menu index="game">
             <template #title>
-              <el-icon><GamePad /></el-icon>
+              <el-icon><Opportunity /></el-icon>
               <span>游戏</span>
             </template>
             <el-menu-item index="/draw">
