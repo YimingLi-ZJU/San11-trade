@@ -2,14 +2,16 @@ package config
 
 import (
 	"os"
+	"strconv"
 )
 
 // Config holds the application configuration
 type Config struct {
-	Server   ServerConfig
-	Database DatabaseConfig
-	JWT      JWTConfig
-	Game     GameConfig
+	Server       ServerConfig
+	Database     DatabaseConfig
+	JWT          JWTConfig
+	Game         GameConfig
+	Registration RegistrationConfig
 }
 
 type ServerConfig struct {
@@ -34,6 +36,10 @@ type GameConfig struct {
 	PlayersPerSeason int // Number of players per season (default 32)
 }
 
+type RegistrationConfig struct {
+	RequireInviteCode bool // Whether registration requires an invite code
+}
+
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
 	return &Config{
@@ -55,12 +61,26 @@ func DefaultConfig() *Config {
 			DraftRounds:      4,
 			PlayersPerSeason: 32,
 		},
+		Registration: RegistrationConfig{
+			RequireInviteCode: getEnvBool("REQUIRE_INVITE_CODE", true), // Default: require invite code
+		},
 	}
 }
 
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
+	}
+	return defaultValue
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		b, err := strconv.ParseBool(value)
+		if err != nil {
+			return defaultValue
+		}
+		return b
 	}
 	return defaultValue
 }

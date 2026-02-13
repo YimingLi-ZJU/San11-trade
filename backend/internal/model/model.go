@@ -188,3 +188,41 @@ type TradeLog struct {
 	Details     string    `gorm:"type:text" json:"details"` // JSON details
 	CreatedAt   time.Time `json:"created_at"`
 }
+
+// InviteCode represents an invitation code for registration
+type InviteCode struct {
+	ID        uint       `gorm:"primaryKey" json:"id"`
+	Code      string     `gorm:"uniqueIndex;size:32;not null" json:"code"` // 32-character unique code
+	Type      int        `gorm:"default:0" json:"type"`                    // 0=single-use, 1=multi-use
+	MaxUses   int        `gorm:"default:1" json:"max_uses"`                // Maximum number of uses
+	UsedCount int        `gorm:"default:0" json:"used_count"`              // Number of times used
+	ExpiredAt *time.Time `json:"expired_at"`                               // Expiration time, null=never expires
+	CreatedBy uint       `json:"created_by"`                               // Creator (admin) ID
+	Creator   *User      `gorm:"foreignKey:CreatedBy" json:"creator,omitempty"`
+	Remark    string     `gorm:"size:200" json:"remark"` // Optional remark/note
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}
+
+// InviteCodeUsage records each use of an invite code
+type InviteCodeUsage struct {
+	ID           uint        `gorm:"primaryKey" json:"id"`
+	InviteCodeID uint        `gorm:"index;not null" json:"invite_code_id"`
+	InviteCode   *InviteCode `gorm:"foreignKey:InviteCodeID" json:"invite_code,omitempty"`
+	UserID       uint        `gorm:"index;not null" json:"user_id"`
+	User         *User       `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	UsedAt       time.Time   `json:"used_at"`
+}
+
+// IsValid checks if the invite code is still valid
+func (ic *InviteCode) IsValid() bool {
+	// Check if expired
+	if ic.ExpiredAt != nil && time.Now().After(*ic.ExpiredAt) {
+		return false
+	}
+	// Check if usage limit reached
+	if ic.UsedCount >= ic.MaxUses {
+		return false
+	}
+	return true
+}

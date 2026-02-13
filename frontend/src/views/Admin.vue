@@ -51,6 +51,130 @@
           </el-popconfirm>
         </el-tab-pane>
 
+        <!-- Invite Code Management -->
+        <el-tab-pane label="邀请码管理" name="invite">
+          <!-- Stats -->
+          <el-row :gutter="20" class="invite-stats">
+            <el-col :span="6">
+              <el-statistic title="总邀请码" :value="inviteStats.total || 0" />
+            </el-col>
+            <el-col :span="6">
+              <el-statistic title="可用" :value="inviteStats.available || 0">
+                <template #suffix>
+                  <el-icon color="#67c23a"><CircleCheck /></el-icon>
+                </template>
+              </el-statistic>
+            </el-col>
+            <el-col :span="6">
+              <el-statistic title="已使用" :value="inviteStats.used || 0" />
+            </el-col>
+            <el-col :span="6">
+              <el-statistic title="已过期" :value="inviteStats.expired || 0" />
+            </el-col>
+          </el-row>
+
+          <el-divider />
+
+          <!-- Generate Form -->
+          <el-form :model="generateForm" label-width="100px" style="max-width: 600px">
+            <el-form-item label="生成数量">
+              <el-input-number v-model="generateForm.count" :min="1" :max="100" />
+            </el-form-item>
+            <el-form-item label="使用次数">
+              <el-input-number v-model="generateForm.max_uses" :min="1" :max="100" />
+              <span class="form-tip">每个邀请码可被使用的次数</span>
+            </el-form-item>
+            <el-form-item label="有效期(天)">
+              <el-input-number v-model="generateForm.expire_days" :min="0" :max="365" />
+              <span class="form-tip">0 表示永不过期</span>
+            </el-form-item>
+            <el-form-item label="备注">
+              <el-input v-model="generateForm.remark" placeholder="可选，如：第一批玩家" />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="handleGenerateCodes" :loading="generating">
+                生成邀请码
+              </el-button>
+            </el-form-item>
+          </el-form>
+
+          <!-- Generated codes display -->
+          <el-card v-if="generatedCodes.length > 0" class="generated-codes-card">
+            <template #header>
+              <div class="card-header">
+                <span>新生成的邀请码 ({{ generatedCodes.length }} 个)</span>
+                <el-button type="primary" link @click="copyAllCodes">
+                  <el-icon><CopyDocument /></el-icon> 复制全部
+                </el-button>
+              </div>
+            </template>
+            <div class="code-list">
+              <el-tag 
+                v-for="code in generatedCodes" 
+                :key="code"
+                class="code-tag"
+                @click="copyCode(code)"
+              >
+                {{ code }}
+              </el-tag>
+            </div>
+          </el-card>
+
+          <el-divider />
+
+          <!-- Invite codes table -->
+          <el-table :data="inviteCodes" stripe v-loading="loadingCodes">
+            <el-table-column prop="code" label="邀请码" width="180">
+              <template #default="{ row }">
+                <el-text class="code-text" @click="copyCode(row.code)">{{ row.code }}</el-text>
+              </template>
+            </el-table-column>
+            <el-table-column label="使用情况" width="100">
+              <template #default="{ row }">
+                {{ row.used_count }} / {{ row.max_uses }}
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag :type="getCodeStatusType(row)" size="small">
+                  {{ getCodeStatusText(row) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="remark" label="备注" />
+            <el-table-column label="过期时间" width="160">
+              <template #default="{ row }">
+                {{ row.expired_at ? formatTime(row.expired_at) : '永不过期' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="created_at" label="创建时间" width="160">
+              <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="100" fixed="right">
+              <template #default="{ row }">
+                <el-popconfirm
+                  title="确定删除此邀请码？"
+                  @confirm="handleDeleteCode(row.id)"
+                >
+                  <template #reference>
+                    <el-button type="danger" link size="small">删除</el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <!-- Pagination -->
+          <el-pagination
+            v-model:current-page="currentPage"
+            :page-size="pageSize"
+            :total="totalCodes"
+            layout="prev, pager, next"
+            @current-change="loadInviteCodes"
+            style="margin-top: 16px; justify-content: center;"
+          />
+        </el-tab-pane>
+
         <!-- Data Import -->
         <el-tab-pane label="数据导入" name="import">
           <el-upload
@@ -130,8 +254,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { CircleCheck, CopyDocument } from '@element-plus/icons-vue'
 import { useGameStore } from '../stores/game'
 import { adminApi, gameApi } from '../api'
 
@@ -149,6 +274,23 @@ const changingPhase = ref(false)
 const resetting = ref(false)
 const importing = ref(false)
 const loadingTrades = ref(false)
+
+// Invite code state
+const inviteCodes = ref([])
+const inviteStats = ref({})
+const loadingCodes = ref(false)
+const generating = ref(false)
+const generatedCodes = ref([])
+const currentPage = ref(1)
+const pageSize = 20
+const totalCodes = ref(0)
+
+const generateForm = reactive({
+  count: 10,
+  max_uses: 1,
+  expire_days: 30,
+  remark: ''
+})
 
 onMounted(async () => {
   await loadData()
@@ -168,6 +310,8 @@ async function loadData() {
   }
 
   loadTrades()
+  loadInviteCodes()
+  loadInviteStats()
 }
 
 async function loadTrades() {
@@ -180,6 +324,79 @@ async function loadTrades() {
   } finally {
     loadingTrades.value = false
   }
+}
+
+async function loadInviteCodes() {
+  loadingCodes.value = true
+  try {
+    const response = await adminApi.getInviteCodes(currentPage.value, pageSize)
+    inviteCodes.value = response.data.codes || []
+    totalCodes.value = response.data.total || 0
+  } catch (error) {
+    console.error('Failed to load invite codes:', error)
+  } finally {
+    loadingCodes.value = false
+  }
+}
+
+async function loadInviteStats() {
+  try {
+    const response = await adminApi.getInviteCodeStats()
+    inviteStats.value = response.data || {}
+  } catch (error) {
+    console.error('Failed to load invite stats:', error)
+  }
+}
+
+async function handleGenerateCodes() {
+  generating.value = true
+  try {
+    const response = await adminApi.generateInviteCodes(generateForm)
+    generatedCodes.value = response.data.code_strings || []
+    ElMessage.success(`成功生成 ${generatedCodes.value.length} 个邀请码`)
+    await loadInviteCodes()
+    await loadInviteStats()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '生成失败')
+  } finally {
+    generating.value = false
+  }
+}
+
+async function handleDeleteCode(id) {
+  try {
+    await adminApi.deleteInviteCode(id)
+    ElMessage.success('邀请码已删除')
+    await loadInviteCodes()
+    await loadInviteStats()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '删除失败')
+  }
+}
+
+function copyCode(code) {
+  navigator.clipboard.writeText(code)
+  ElMessage.success('已复制到剪贴板')
+}
+
+function copyAllCodes() {
+  const text = generatedCodes.value.join('\n')
+  navigator.clipboard.writeText(text)
+  ElMessage.success('已复制全部邀请码')
+}
+
+function getCodeStatusType(code) {
+  const now = new Date()
+  if (code.expired_at && new Date(code.expired_at) < now) return 'info'
+  if (code.used_count >= code.max_uses) return 'warning'
+  return 'success'
+}
+
+function getCodeStatusText(code) {
+  const now = new Date()
+  if (code.expired_at && new Date(code.expired_at) < now) return '已过期'
+  if (code.used_count >= code.max_uses) return '已用完'
+  return '可用'
 }
 
 async function handleChangePhase() {
@@ -255,5 +472,49 @@ function formatTime(time) {
 
 .import-result {
   margin-top: 20px;
+}
+
+.invite-stats {
+  margin-bottom: 20px;
+}
+
+.form-tip {
+  color: #909399;
+  font-size: 12px;
+  margin-left: 10px;
+}
+
+.generated-codes-card {
+  margin: 20px 0;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.code-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.code-tag {
+  cursor: pointer;
+  font-family: monospace;
+}
+
+.code-tag:hover {
+  background-color: #ecf5ff;
+}
+
+.code-text {
+  font-family: monospace;
+  cursor: pointer;
+}
+
+.code-text:hover {
+  color: #409eff;
 }
 </style>

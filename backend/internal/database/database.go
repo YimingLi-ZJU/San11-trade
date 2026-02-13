@@ -63,6 +63,8 @@ func migrate() error {
 		&model.DrawRecord{},
 		&model.DraftRecord{},
 		&model.TradeLog{},
+		&model.InviteCode{},
+		&model.InviteCodeUsage{},
 	)
 }
 

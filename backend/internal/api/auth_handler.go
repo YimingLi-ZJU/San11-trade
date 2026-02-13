@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	"san11-trade/internal/config"
 	"san11-trade/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -10,9 +11,10 @@ import (
 
 // RegisterRequest represents registration request
 type RegisterRequest struct {
-	Username string `json:"username" binding:"required,min=3,max=50"`
-	Password string `json:"password" binding:"required,min=6"`
-	Nickname string `json:"nickname"`
+	Username   string `json:"username" binding:"required,min=3,max=50"`
+	Password   string `json:"password" binding:"required,min=6"`
+	Nickname   string `json:"nickname"`
+	InviteCode string `json:"invite_code"` // Optional, required if config enabled
 }
 
 // LoginRequest represents login request
@@ -29,6 +31,25 @@ func Register(c *gin.Context) {
 		return
 	}
 
+	// Check if invite code is required
+	if config.AppConfig.Registration.RequireInviteCode {
+		if req.InviteCode == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "注册需要邀请码"})
+			return
+		}
+
+		// Validate invite code (don't consume yet)
+		inviteCode, err := service.GetInviteCodeByCode(req.InviteCode)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "邀请码无效"})
+			return
+		}
+		if !inviteCode.IsValid() {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "邀请码已过期或已被使用"})
+			return
+		}
+	}
+
 	if req.Nickname == "" {
 		req.Nickname = req.Username
 	}
@@ -41,6 +62,14 @@ func Register(c *gin.Context) {
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Consume invite code after successful registration
+	if config.AppConfig.Registration.RequireInviteCode && req.InviteCode != "" {
+		if err := service.ValidateAndUseInviteCode(req.InviteCode, user.ID); err != nil {
+			// Log error but don't fail registration since user is already created
+			// This is a rare edge case (race condition)
+		}
 	}
 
 	// Generate token for the new user

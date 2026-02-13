@@ -54,7 +54,8 @@ export const gameApi = {
   signUp: () => api.post('/signup'),
   getPlayers: () => api.get('/players'),
   getPlayerRoster: (id) => api.get(`/players/${id}/roster`),
-  getStatistics: () => api.get('/statistics')
+  getStatistics: () => api.get('/statistics'),
+  getRegistrationConfig: () => api.get('/config/registration')
 }
 
 // Draw APIs
@@ -97,7 +98,18 @@ export const adminApi = {
   getAllTrades: () => api.get('/admin/trades'),
   importData: (formData) => api.post('/admin/import', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
-  })
+  }),
+  // Invite code management
+  generateInviteCodes: (data) => api.post('/admin/invite-codes', data),
+  getInviteCodes: (page = 1, pageSize = 20) => api.get(`/admin/invite-codes?page=${page}&page_size=${pageSize}`),
+  getInviteCodeStats: () => api.get('/admin/invite-codes/stats'),
+  deleteInviteCode: (id) => api.delete(`/admin/invite-codes/${id}`),
+  getInviteCodeUsages: (id) => api.get(`/admin/invite-codes/${id}/usages`)
+}
+
+// Invite code APIs (public)
+export const inviteCodeApi = {
+  validate: (code) => api.get(`/invite-codes/validate?code=${code}`)
 }
 
 export default api

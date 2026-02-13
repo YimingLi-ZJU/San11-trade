@@ -128,6 +128,8 @@ func SetupRouter() *gin.Engine {
 		api.GET("/players", GetRegisteredPlayers)
 		api.GET("/players/:id/roster", GetPlayerRoster)
 		api.GET("/statistics", GetStatistics)
+		api.GET("/config/registration", GetRegistrationConfig) // Registration config (invite code required?)
+		api.GET("/invite-codes/validate", ValidateInviteCode)  // Validate invite code (public)
 
 		// Protected routes (require authentication)
 		protected := api.Group("")
@@ -175,6 +177,13 @@ func SetupRouter() *gin.Engine {
 			admin.POST("/reset", ResetSeason)
 			admin.GET("/trades", GetAllTrades)
 			admin.POST("/import", ImportData)
+
+			// Invite code management
+			admin.POST("/invite-codes", GenerateInviteCodes)
+			admin.GET("/invite-codes", GetInviteCodes)
+			admin.GET("/invite-codes/stats", GetInviteCodeStats)
+			admin.DELETE("/invite-codes/:id", DeleteInviteCode)
+			admin.GET("/invite-codes/:id/usages", GetInviteCodeUsages)
 		}
 	}
 
