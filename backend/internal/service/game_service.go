@@ -33,9 +33,10 @@ func SetGamePhase(phaseName string, roundNumber int, draftRound int) error {
 	validPhases := map[string]bool{
 		"signup":   true,
 		"draw":     true,
+		"auction":  true,
+		"policy":   true,
 		"draft":    true,
 		"trading":  true,
-		"auction":  true,
 		"match":    true,
 		"finished": true,
 	}
@@ -187,6 +188,35 @@ func ResetSeason() error {
 
 	// Clear auction records
 	if err := tx.Exec("DELETE FROM auction_records").Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Clear policy bids
+	if err := tx.Exec("DELETE FROM policy_bids").Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Clear policy preferences
+	if err := tx.Exec("DELETE FROM policy_preferences").Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Clear policy selections
+	if err := tx.Exec("DELETE FROM policy_selections").Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// Reset policy phase config
+	if err := tx.Model(&model.PolicyPhaseConfig{}).Where("id >= 1").Updates(map[string]interface{}{
+		"status":           "bidding",
+		"start_time":       nil,
+		"current_selector": nil,
+		"current_deadline": nil,
+	}).Error; err != nil {
 		tx.Rollback()
 		return err
 	}

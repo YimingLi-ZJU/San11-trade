@@ -100,6 +100,19 @@ export const auctionApi = {
   getStats: () => api.get('/auction/stats')
 }
 
+// Policy APIs (国策拍卖)
+export const policyApi = {
+  // Player APIs
+  getStatus: () => api.get('/policy/status'),
+  getMyBid: () => api.get('/policy/my-bid'),
+  placeBid: (bidAmount) => api.post('/policy/bid', { bid_amount: bidAmount }),
+  setPreferences: (clubIds) => api.post('/policy/preferences', { club_ids: clubIds }),
+  selectClub: (clubId) => api.post('/policy/select', { club_id: clubId }),
+  getResults: () => api.get('/policy/results'),
+  getClubs: (params) => api.get('/policy/clubs', { params }),
+  getFilters: () => api.get('/policy/filters')
+}
+
 // Admin APIs
 export const adminApi = {
   setPhase: (data) => api.post('/admin/phase', data),
@@ -122,7 +135,16 @@ export const adminApi = {
   // Auction management
   getAuctionStats: () => api.get('/admin/auction/stats'),
   assignAuction: (data) => api.post('/admin/auction/assign', data),
-  resetAuction: (generalId) => api.post(`/admin/auction/reset/${generalId}`)
+  resetAuction: (generalId) => api.post(`/admin/auction/reset/${generalId}`),
+  // Policy management (国策管理)
+  closePolicyBidding: () => api.post('/admin/policy/close-bidding'),
+  startPolicySelection: (data) => api.post('/admin/policy/start-selection', data),
+  getPolicyBids: () => api.get('/admin/policy/bids'),
+  resetPolicyPhase: () => api.post('/admin/policy/reset'),
+  resetUserPolicySelection: (userId) => api.post(`/admin/policy/reset-user/${userId}`),
+  selectClubForUser: (userId, clubId) => api.post(`/admin/policy/select-for/${userId}`, { club_id: clubId }),
+  checkPolicyTimeout: () => api.post('/admin/policy/check-timeout'),
+  forceNextSelector: () => api.post('/admin/policy/force-next')
 }
 
 // Invite code APIs (public)

@@ -58,6 +58,9 @@
             <el-menu-item index="/auction">
               <el-icon><Sell /></el-icon>拍卖
             </el-menu-item>
+            <el-menu-item index="/policy">
+              <el-icon><TrophyBase /></el-icon>国策
+            </el-menu-item>
             <el-menu-item index="/draft">
               <el-icon><Select /></el-icon>选秀
             </el-menu-item>

@@ -66,6 +66,12 @@ func migrate() error {
 		&model.InviteCode{},
 		&model.InviteCodeUsage{},
 		&model.AuctionRecord{},
+		// Policy auction models
+		&model.ClubTag{},
+		&model.PolicyBid{},
+		&model.PolicyPreference{},
+		&model.PolicySelection{},
+		&model.PolicyPhaseConfig{},
 	)
 }
 

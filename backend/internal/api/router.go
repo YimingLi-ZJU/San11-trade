@@ -169,6 +169,16 @@ func SetupRouter() *gin.Engine {
 				game.GET("/auction/pool", GetAuctionPool)
 				game.GET("/auction/results", GetAuctionResults)
 				game.GET("/auction/stats", GetAuctionStats)
+
+				// Policy routes (国策拍卖)
+				game.GET("/policy/status", GetPolicyStatus)
+				game.GET("/policy/my-bid", GetMyPolicyBid)
+				game.POST("/policy/bid", PlacePolicyBid)
+				game.POST("/policy/preferences", SetPolicyPreferences)
+				game.POST("/policy/select", SelectPolicyClub)
+				game.GET("/policy/results", GetPolicySelectionResults)
+				game.GET("/policy/clubs", GetClubsWithFilters)
+				game.GET("/policy/filters", GetClubFilters)
 			}
 
 			// Sign up (doesn't require previous registration)
@@ -201,6 +211,16 @@ func SetupRouter() *gin.Engine {
 			admin.GET("/auction/stats", GetAuctionStats)
 			admin.POST("/auction/assign", AssignAuction)
 			admin.POST("/auction/reset/:generalId", ResetAuction)
+
+			// Policy management (国策管理)
+			admin.POST("/policy/close-bidding", AdminClosePolicyBidding)
+			admin.POST("/policy/start-selection", AdminStartPolicySelection)
+			admin.GET("/policy/bids", AdminGetPolicyBids)
+			admin.POST("/policy/reset", AdminResetPolicyPhase)
+			admin.POST("/policy/reset-user/:userId", AdminResetUserPolicySelection)
+			admin.POST("/policy/select-for/:userId", AdminSelectClubForUser)
+			admin.POST("/policy/check-timeout", AdminCheckPolicyTimeout)
+			admin.POST("/policy/force-next", AdminForceNextSelector)
 		}
 	}
 

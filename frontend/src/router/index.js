@@ -75,6 +75,11 @@ const routes = [
         component: () => import('../views/Auction.vue')
       },
       {
+        path: 'policy',
+        name: 'Policy',
+        component: () => import('../views/Policy.vue')
+      },
+      {
         path: 'draft',
         name: 'Draft',
         component: () => import('../views/Draft.vue')

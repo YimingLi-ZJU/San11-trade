@@ -467,12 +467,13 @@ func parseCityRow(row []string) *model.City {
 }
 
 // parseClubsAndPolicies parses clubs and their policies from "国策" sheet
-// Structure:
+// New format based on user's Excel:
 //
 //	Row: "N"(序号)  | "条件" | "效果"     <- 俱乐部段开始标记
 //	Row: "俱乐部名" | ""     | "基础效果"  <- 俱乐部名和基础效果
-//	Row: ""        | "条件1" | "效果1"    <- 国策条目
-//	Row: ""        | "条件2" | "效果2"    <- 国策条目
+//	Row: "联赛名"   | "条件" | "效果"     <- 第一个国策条目，同时联赛名作为标签
+//	Row: "标签1"    | "条件" | "效果"     <- 国策条目，标签名
+//	Row: "标签2"    | "条件" | "效果"     <- 国策条目，标签名
 //	空行 -> 下一个俱乐部
 func parseClubsAndPolicies(rows [][]string, db *gorm.DB) (int, int) {
 	clubsCount := 0
@@ -523,8 +524,9 @@ func parseClubsAndPolicies(rows [][]string, db *gorm.DB) (int, int) {
 			}
 			clubsCount++
 
-			// Delete old policies for this club
+			// Delete old policies and tags for this club
 			db.Where("club_id = ?", club.ID).Delete(&model.Policy{})
+			db.Where("club_id = ?", club.ID).Delete(&model.ClubTag{})
 
 			// Create base effect as the first policy (if exists)
 			sortOrder := 0
@@ -539,6 +541,10 @@ func parseClubsAndPolicies(rows [][]string, db *gorm.DB) (int, int) {
 				policiesCount++
 				sortOrder++
 			}
+
+			// Track tags - first tag is league, rest are feature tags
+			isFirstTag := true
+			var tags []string
 
 			// Parse following policy rows
 			i++
@@ -558,7 +564,7 @@ func parseClubsAndPolicies(rows [][]string, db *gorm.DB) (int, int) {
 				}
 
 				// If first cell is a club name (Chinese), it's a new club
-				if firstCell != "" && containsChinese(firstCell) {
+				if firstCell != "" && containsChinese(firstCell) && !isTagOrLeagueName(firstCell) {
 					break
 				}
 
@@ -578,6 +584,17 @@ func parseClubsAndPolicies(rows [][]string, db *gorm.DB) (int, int) {
 					continue
 				}
 
+				// First cell could be a tag/league name
+				if firstCell != "" && firstCell != "条件" {
+					if isFirstTag {
+						// First tag is the league
+						db.Model(&club).Update("league", firstCell)
+						isFirstTag = false
+					}
+					// All tags (including league) are added as ClubTag
+					tags = append(tags, firstCell)
+				}
+
 				// Create policy
 				if condition != "" || effect != "" {
 					policy := &model.Policy{
@@ -593,6 +610,16 @@ func parseClubsAndPolicies(rows [][]string, db *gorm.DB) (int, int) {
 
 				i++
 			}
+
+			// Create tags for this club
+			for _, tag := range tags {
+				clubTag := &model.ClubTag{
+					ClubID: club.ID,
+					Tag:    tag,
+				}
+				db.Create(clubTag)
+			}
+
 			continue
 		}
 
@@ -600,6 +627,15 @@ func parseClubsAndPolicies(rows [][]string, db *gorm.DB) (int, int) {
 	}
 
 	return clubsCount, policiesCount
+}
+
+// isTagOrLeagueName checks if a string looks like a tag or league name (short Chinese string)
+func isTagOrLeagueName(s string) bool {
+	s = strings.TrimSpace(s)
+	// Tags are usually short (2-4 characters) Chinese strings
+	// Examples: 意甲, 戟兵, 内政, 复制
+	runeCount := len([]rune(s))
+	return runeCount <= 6 && containsChinese(s)
 }
 
 // parseGameRules parses game rules from "规则" sheet

@@ -94,8 +94,10 @@ type Club struct {
 	ID          uint      `gorm:"primaryKey" json:"id"`
 	ExcelID     int       `json:"excel_id"`                                    // 序号 from Excel
 	Name        string    `gorm:"size:50;not null" json:"name"`                // 俱乐部名称
+	League      string    `gorm:"size:50" json:"league"`                       // 所属联赛 (如意甲)
 	Description string    `gorm:"size:500" json:"description"`                 // 基础效果
 	Policies    []Policy  `gorm:"foreignKey:ClubID" json:"policies,omitempty"` // 国策列表
+	Tags        []ClubTag `gorm:"foreignKey:ClubID" json:"tags,omitempty"`     // 标签列表
 	BasePrice   int       `json:"base_price"`                                  // Base price for auction
 	OwnerID     *uint     `json:"owner_id"`                                    // Current owner
 	Owner       *User     `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
@@ -239,4 +241,63 @@ func (ic *InviteCode) IsValid() bool {
 		return false
 	}
 	return true
+}
+
+// ===== Policy Auction Models =====
+
+// ClubTag represents a tag/feature of a club (e.g., 戟兵, 内政, 复制)
+type ClubTag struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	ClubID    uint      `gorm:"not null;index" json:"club_id"`
+	Tag       string    `gorm:"size:50;not null" json:"tag"` // Tag name (e.g., 戟兵, 内政, 复制)
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// PolicyBid records a player's bid for the policy auction
+type PolicyBid struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    uint      `gorm:"not null;uniqueIndex" json:"user_id"` // Each user can only bid once
+	User      *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	BidAmount int       `gorm:"default:0" json:"bid_amount"` // Bid amount (space), 0 means default
+	Rank      int       `gorm:"default:0" json:"rank"`       // Calculated selection order (1 = first pick)
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// PolicyPreference records a player's preferred club order
+type PolicyPreference struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    uint      `gorm:"not null;index" json:"user_id"`
+	User      *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	ClubID    uint      `gorm:"not null" json:"club_id"`
+	Club      *Club     `gorm:"foreignKey:ClubID" json:"club,omitempty"`
+	Priority  int       `gorm:"not null" json:"priority"` // Priority order (1 = highest priority)
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// PolicySelection records the final club selection result
+type PolicySelection struct {
+	ID           uint      `gorm:"primaryKey" json:"id"`
+	UserID       uint      `gorm:"not null;uniqueIndex" json:"user_id"` // Each user can only select one club
+	User         *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	ClubID       uint      `gorm:"not null" json:"club_id"`
+	Club         *Club     `gorm:"foreignKey:ClubID" json:"club,omitempty"`
+	BidCost      int       `gorm:"default:0" json:"bid_cost"`          // Space cost from bidding
+	AutoAssigned bool      `gorm:"default:false" json:"auto_assigned"` // True if auto-assigned due to timeout
+	SelectOrder  int       `gorm:"default:0" json:"select_order"`      // Order in which this selection was made
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+// PolicyPhaseConfig stores the configuration for policy selection phase
+type PolicyPhaseConfig struct {
+	ID              uint       `gorm:"primaryKey" json:"id"`
+	Status          string     `gorm:"size:20;default:bidding" json:"status"` // bidding/closed/selecting/completed
+	StartTime       *time.Time `json:"start_time"`                            // When selection officially starts
+	TimeoutMinutes  int        `gorm:"default:10" json:"timeout_minutes"`     // Minutes allowed per selection (5-60)
+	CurrentSelector *uint      `json:"current_selector"`                      // Current user who should select
+	CurrentDeadline *time.Time `json:"current_deadline"`                      // Deadline for current selection
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
 }

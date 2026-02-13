@@ -20,6 +20,7 @@
                 <el-option label="报名阶段" value="signup" />
                 <el-option label="抽将阶段" value="draw" />
                 <el-option label="拍卖阶段" value="auction" />
+                <el-option label="国策阶段" value="policy" />
                 <el-option label="选秀阶段" value="draft" />
                 <el-option label="自由交易" value="trading" />
                 <el-option label="比赛阶段" value="match" />
@@ -449,6 +450,233 @@
             </el-table-column>
           </el-table>
         </el-tab-pane>
+
+        <!-- Policy Management -->
+        <el-tab-pane label="国策管理" name="policy">
+          <el-alert type="info" :closable="false" style="margin-bottom: 20px">
+            <template #title>国策选择管理说明</template>
+            <p>• 出价阶段：玩家可以出价并设置偏好顺序</p>
+            <p>• 截止出价：系统根据出价计算选择顺序</p>
+            <p>• 开始选择：设置开始时间和超时时间，玩家依次选择国策</p>
+            <p>• 超时自动分配：玩家未在规定时间内选择，系统按偏好自动分配</p>
+          </el-alert>
+
+          <!-- Policy Status -->
+          <el-card shadow="hover" style="margin-bottom: 20px">
+            <template #header><span>当前状态</span></template>
+            <el-descriptions :column="3" border>
+              <el-descriptions-item label="阶段状态">
+                <el-tag :type="getPolicyStatusType(policyConfig?.status)">
+                  {{ getPolicyStatusText(policyConfig?.status) }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="开始时间" v-if="policyConfig?.start_time">
+                {{ formatTime(policyConfig.start_time) }}
+              </el-descriptions-item>
+              <el-descriptions-item label="超时设置" v-if="policyConfig?.timeout_minutes">
+                {{ policyConfig.timeout_minutes }} 分钟/人
+              </el-descriptions-item>
+              <el-descriptions-item label="当前选择者" v-if="policyCurrentUser">
+                <el-tag type="warning">{{ policyCurrentUser.nickname || policyCurrentUser.username }}</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="截止时间" v-if="policyConfig?.current_deadline">
+                {{ formatTime(policyConfig.current_deadline) }}
+              </el-descriptions-item>
+            </el-descriptions>
+          </el-card>
+
+          <!-- Control Buttons -->
+          <el-row :gutter="20" style="margin-bottom: 20px">
+            <el-col :span="8">
+              <el-card shadow="hover">
+                <template #header><span>出价控制</span></template>
+                <el-space direction="vertical" fill style="width: 100%">
+                  <el-popconfirm
+                    title="确定要截止出价吗？截止后玩家将无法再修改出价。"
+                    @confirm="handleClosePolicyBidding"
+                    :disabled="policyConfig?.status !== 'bidding'"
+                  >
+                    <template #reference>
+                      <el-button 
+                        type="warning" 
+                        :loading="closingBidding" 
+                        :disabled="policyConfig?.status !== 'bidding'"
+                        style="width: 100%"
+                      >
+                        截止出价
+                      </el-button>
+                    </template>
+                  </el-popconfirm>
+                </el-space>
+              </el-card>
+            </el-col>
+            
+            <el-col :span="8">
+              <el-card shadow="hover">
+                <template #header><span>开始选择</span></template>
+                <el-form :model="policyStartForm" label-width="80px" size="small">
+                  <el-form-item label="开始时间">
+                    <el-date-picker
+                      v-model="policyStartForm.start_time"
+                      type="datetime"
+                      placeholder="选择开始时间"
+                      style="width: 100%"
+                    />
+                  </el-form-item>
+                  <el-form-item label="超时(分)">
+                    <el-input-number v-model="policyStartForm.timeout_minutes" :min="5" :max="60" style="width: 100%" />
+                  </el-form-item>
+                  <el-form-item>
+                    <el-button 
+                      type="success" 
+                      @click="handleStartPolicySelection" 
+                      :loading="startingSelection"
+                      :disabled="policyConfig?.status !== 'closed'"
+                      style="width: 100%"
+                    >
+                      开始选择
+                    </el-button>
+                  </el-form-item>
+                </el-form>
+              </el-card>
+            </el-col>
+            
+            <el-col :span="8">
+              <el-card shadow="hover">
+                <template #header><span>其他操作</span></template>
+                <el-space direction="vertical" fill style="width: 100%">
+                  <el-popconfirm
+                    title="确定要跳过当前选择者吗？系统将自动为其分配国策。"
+                    @confirm="handleForceNextSelector"
+                    :disabled="policyConfig?.status !== 'selecting'"
+                  >
+                    <template #reference>
+                      <el-button 
+                        type="warning" 
+                        :disabled="policyConfig?.status !== 'selecting'"
+                        style="width: 100%"
+                      >
+                        跳过当前/自动分配
+                      </el-button>
+                    </template>
+                  </el-popconfirm>
+                  <el-popconfirm
+                    title="确定要重置整个国策选择吗？这将清除所有出价和选择记录！"
+                    @confirm="handleResetPolicyPhase"
+                  >
+                    <template #reference>
+                      <el-button type="danger" :loading="resettingPolicy" style="width: 100%">
+                        重置国策选择
+                      </el-button>
+                    </template>
+                  </el-popconfirm>
+                </el-space>
+              </el-card>
+            </el-col>
+          </el-row>
+
+          <!-- Bids Table -->
+          <el-card shadow="hover" style="margin-bottom: 20px">
+            <template #header><span>出价与选择顺序</span></template>
+            <el-table :data="policyBids" stripe>
+              <el-table-column prop="rank" label="顺序" width="80" />
+              <el-table-column label="玩家">
+                <template #default="{ row }">
+                  {{ row.user?.nickname || row.user?.username }}
+                </template>
+              </el-table-column>
+              <el-table-column prop="bid_amount" label="出价" width="100" />
+              <el-table-column label="状态">
+                <template #default="{ row }">
+                  <el-tag v-if="getPolicySelectionForUser(row.user_id)" type="success">
+                    已选择: {{ getPolicySelectionForUser(row.user_id).club?.name }}
+                  </el-tag>
+                  <el-tag v-else-if="policyConfig?.current_selector === row.user_id" type="warning">
+                    正在选择
+                  </el-tag>
+                  <el-tag v-else type="info">等待中</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="180">
+                <template #default="{ row }">
+                  <el-space>
+                    <el-popconfirm
+                      v-if="getPolicySelectionForUser(row.user_id)"
+                      title="确定要重置该玩家的国策选择吗？"
+                      @confirm="handleResetUserPolicySelection(row.user_id)"
+                    >
+                      <template #reference>
+                        <el-button type="danger" link size="small">重置选择</el-button>
+                      </template>
+                    </el-popconfirm>
+                    <el-button 
+                      v-if="!getPolicySelectionForUser(row.user_id) && policyConfig?.status === 'selecting'"
+                      type="primary" 
+                      link 
+                      size="small"
+                      @click="showSelectForUserDialog(row.user_id)"
+                    >
+                      代选国策
+                    </el-button>
+                  </el-space>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-card>
+
+          <!-- Selections Table -->
+          <el-card v-if="policySelections.length > 0" shadow="hover">
+            <template #header><span>选择结果</span></template>
+            <el-table :data="policySelections" stripe>
+              <el-table-column prop="select_order" label="顺序" width="80" />
+              <el-table-column label="玩家">
+                <template #default="{ row }">
+                  {{ row.user?.nickname || row.user?.username }}
+                </template>
+              </el-table-column>
+              <el-table-column label="国策">
+                <template #default="{ row }">
+                  <div>
+                    <strong>{{ row.club?.name }}</strong>
+                    <el-tag v-if="row.club?.league" size="small" type="info" style="margin-left: 8px">
+                      {{ row.club.league }}
+                    </el-tag>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="bid_cost" label="花费空间" width="100" />
+              <el-table-column label="方式" width="100">
+                <template #default="{ row }">
+                  <el-tag :type="row.auto_assigned ? 'warning' : 'success'">
+                    {{ row.auto_assigned ? '自动分配' : '手动选择' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-card>
+
+          <!-- Select Club Dialog -->
+          <el-dialog v-model="showSelectClubDialog" title="代选国策" width="600px">
+            <el-form label-width="100px">
+              <el-form-item label="选择国策">
+                <el-select v-model="selectClubForm.club_id" placeholder="选择国策" style="width: 100%" filterable>
+                  <el-option
+                    v-for="club in policyAvailableClubs"
+                    :key="club.id"
+                    :label="`${club.name} (${club.league || '无联赛'})`"
+                    :value="club.id"
+                  />
+                </el-select>
+              </el-form-item>
+            </el-form>
+            <template #footer>
+              <el-button @click="showSelectClubDialog = false">取消</el-button>
+              <el-button type="primary" @click="handleSelectClubForUser" :loading="selectingForUser">
+                确认选择
+              </el-button>
+            </template>
+          </el-dialog>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
   </div>
@@ -459,7 +687,7 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { CircleCheck, CopyDocument } from '@element-plus/icons-vue'
 import { useGameStore } from '../stores/game'
-import { adminApi, gameApi, auctionApi } from '../api'
+import { adminApi, gameApi, auctionApi, policyApi } from '../api'
 
 const gameStore = useGameStore()
 
@@ -497,6 +725,26 @@ const auctionForm = reactive({
   user_id: null,
   price: 0,
   remark: ''
+})
+
+// Policy management state
+const policyConfig = ref(null)
+const policyBids = ref([])
+const policySelections = ref([])
+const policyAvailableClubs = ref([])
+const policyCurrentUser = ref(null)
+const closingBidding = ref(false)
+const startingSelection = ref(false)
+const resettingPolicy = ref(false)
+const selectingForUser = ref(false)
+const showSelectClubDialog = ref(false)
+const selectClubForm = reactive({
+  user_id: null,
+  club_id: null
+})
+const policyStartForm = reactive({
+  start_time: null,
+  timeout_minutes: 10
 })
 
 // Invite code state
@@ -538,6 +786,7 @@ async function loadData() {
   loadInviteStats()
   loadRegisteredPlayers()
   loadAuctionData()
+  loadPolicyData()
 }
 
 async function loadRegisteredPlayers() {
@@ -814,6 +1063,139 @@ async function handleResetAuction(generalId) {
     await loadRegisteredPlayers()
   } catch (error) {
     ElMessage.error(error.response?.data?.error || '重置失败')
+  }
+}
+
+// Policy management functions
+
+async function loadPolicyData() {
+  try {
+    const [statusRes, bidsRes] = await Promise.all([
+      policyApi.getStatus(),
+      adminApi.getPolicyBids()
+    ])
+    policyConfig.value = statusRes.data.config
+    policySelections.value = statusRes.data.selections || []
+    policyAvailableClubs.value = statusRes.data.available_clubs || []
+    policyCurrentUser.value = statusRes.data.current_user
+    policyBids.value = bidsRes.data || []
+  } catch (error) {
+    console.error('Failed to load policy data:', error)
+  }
+}
+
+function getPolicyStatusType(status) {
+  const typeMap = {
+    bidding: 'warning',
+    closed: 'info',
+    selecting: 'success',
+    completed: ''
+  }
+  return typeMap[status] || 'info'
+}
+
+function getPolicyStatusText(status) {
+  const textMap = {
+    bidding: '出价阶段',
+    closed: '出价已截止',
+    selecting: '选择进行中',
+    completed: '选择完成'
+  }
+  return textMap[status] || '未知状态'
+}
+
+function getPolicySelectionForUser(userId) {
+  return policySelections.value.find(s => s.user_id === userId)
+}
+
+async function handleClosePolicyBidding() {
+  closingBidding.value = true
+  try {
+    await adminApi.closePolicyBidding()
+    ElMessage.success('出价已截止，已计算选择顺序')
+    await loadPolicyData()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '截止出价失败')
+  } finally {
+    closingBidding.value = false
+  }
+}
+
+async function handleStartPolicySelection() {
+  startingSelection.value = true
+  try {
+    const data = {
+      start_time: policyStartForm.start_time ? new Date(policyStartForm.start_time).toISOString() : '',
+      timeout_minutes: policyStartForm.timeout_minutes
+    }
+    await adminApi.startPolicySelection(data)
+    ElMessage.success('选择阶段已开始')
+    await loadPolicyData()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '开始选择失败')
+  } finally {
+    startingSelection.value = false
+  }
+}
+
+async function handleForceNextSelector() {
+  try {
+    await adminApi.forceNextSelector()
+    ElMessage.success('已跳过当前选择者并自动分配')
+    await loadPolicyData()
+    await loadRegisteredPlayers()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '操作失败')
+  }
+}
+
+async function handleResetPolicyPhase() {
+  resettingPolicy.value = true
+  try {
+    await adminApi.resetPolicyPhase()
+    ElMessage.success('国策选择已重置')
+    await loadPolicyData()
+    await loadRegisteredPlayers()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '重置失败')
+  } finally {
+    resettingPolicy.value = false
+  }
+}
+
+async function handleResetUserPolicySelection(userId) {
+  try {
+    await adminApi.resetUserPolicySelection(userId)
+    ElMessage.success('用户国策选择已重置')
+    await loadPolicyData()
+    await loadRegisteredPlayers()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '重置失败')
+  }
+}
+
+function showSelectForUserDialog(userId) {
+  selectClubForm.user_id = userId
+  selectClubForm.club_id = null
+  showSelectClubDialog.value = true
+}
+
+async function handleSelectClubForUser() {
+  if (!selectClubForm.club_id) {
+    ElMessage.warning('请选择国策')
+    return
+  }
+  selectingForUser.value = true
+  try {
+    await adminApi.selectClubForUser(selectClubForm.user_id, selectClubForm.club_id)
+    ElMessage.success('已为用户选择国策')
+    showSelectClubDialog.value = false
+    await loadPolicyData()
+    await loadRegisteredPlayers()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '选择失败')
+  } finally {
+    selectingForUser.value = false
   }
 }
 </script>

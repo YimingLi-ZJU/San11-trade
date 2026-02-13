@@ -33,9 +33,10 @@ export const useGameStore = defineStore('game', () => {
   const phaseNames = {
     signup: '报名阶段',
     draw: '抽将阶段',
+    auction: '拍卖阶段',
+    policy: '国策阶段',
     draft: '选秀阶段',
     trading: '自由交易',
-    auction: '拍卖阶段',
     match: '比赛阶段',
     finished: '赛季结束'
   }
