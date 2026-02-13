@@ -187,21 +187,26 @@ func GetInviteCodeStats() (map[string]int64, error) {
 	db := database.GetDB()
 
 	stats := make(map[string]int64)
+	var count int64
 
 	// Total codes
-	db.Model(&model.InviteCode{}).Count(&stats["total"])
+	db.Model(&model.InviteCode{}).Count(&count)
+	stats["total"] = count
 
 	// Used codes (used_count > 0)
-	db.Model(&model.InviteCode{}).Where("used_count > 0").Count(&stats["used"])
+	db.Model(&model.InviteCode{}).Where("used_count > 0").Count(&count)
+	stats["used"] = count
 
 	// Available codes (not expired and not fully used)
 	now := time.Now()
 	db.Model(&model.InviteCode{}).
 		Where("(expired_at IS NULL OR expired_at > ?) AND used_count < max_uses", now).
-		Count(&stats["available"])
+		Count(&count)
+	stats["available"] = count
 
 	// Expired codes
-	db.Model(&model.InviteCode{}).Where("expired_at IS NOT NULL AND expired_at <= ?", now).Count(&stats["expired"])
+	db.Model(&model.InviteCode{}).Where("expired_at IS NOT NULL AND expired_at <= ?", now).Count(&count)
+	stats["expired"] = count
 
 	return stats, nil
 }
