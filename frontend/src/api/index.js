@@ -93,6 +93,13 @@ export const tradeApi = {
   cancelTrade: (id) => api.post(`/trades/${id}/cancel`)
 }
 
+// Auction APIs
+export const auctionApi = {
+  getPool: () => api.get('/auction/pool'),
+  getResults: () => api.get('/auction/results'),
+  getStats: () => api.get('/auction/stats')
+}
+
 // Admin APIs
 export const adminApi = {
   setPhase: (data) => api.post('/admin/phase', data),
@@ -111,7 +118,11 @@ export const adminApi = {
   resetUserDraw: (userId) => api.post(`/admin/draw/reset/${userId}`),
   resetAllDraw: () => api.post('/admin/draw/reset-all'),
   drawForUser: (userId) => api.post(`/admin/draw/for/${userId}`),
-  drawForAll: () => api.post('/admin/draw/for-all')
+  drawForAll: () => api.post('/admin/draw/for-all'),
+  // Auction management
+  getAuctionStats: () => api.get('/admin/auction/stats'),
+  assignAuction: (data) => api.post('/admin/auction/assign', data),
+  resetAuction: (generalId) => api.post(`/admin/auction/reset/${generalId}`)
 }
 
 // Invite code APIs (public)

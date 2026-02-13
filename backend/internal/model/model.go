@@ -189,6 +189,20 @@ type TradeLog struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+// AuctionRecord records each auction result
+type AuctionRecord struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	GeneralID uint      `gorm:"not null;uniqueIndex" json:"general_id"` // Each auction general can only be auctioned once
+	General   General   `gorm:"foreignKey:GeneralID" json:"general"`
+	UserID    *uint     `json:"user_id"` // Winner user ID, null means unsold (流拍)
+	User      *User     `gorm:"foreignKey:UserID" json:"user,omitempty"`
+	Price     int       `gorm:"default:0" json:"price"`         // Auction price (space cost)
+	IsUnsold  bool      `gorm:"default:false" json:"is_unsold"` // True if no one bid (流拍)
+	Remark    string    `gorm:"size:200" json:"remark"`         // Optional remark
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 // InviteCode represents an invitation code for registration
 type InviteCode struct {
 	ID        uint       `gorm:"primaryKey" json:"id"`

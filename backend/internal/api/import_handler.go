@@ -49,6 +49,7 @@ func ImportData(c *gin.Context) {
 		"rules":             result.RulesCount,
 		"initial_guarantee": result.InitialGuaranteeCount,
 		"initial_normal":    result.InitialNormalCount,
+		"auction":           result.AuctionCount,
 	})
 }
 
@@ -62,6 +63,7 @@ type ImportResult struct {
 	RulesCount            int
 	InitialGuaranteeCount int
 	InitialNormalCount    int
+	AuctionCount          int
 }
 
 // parseExcelFile parses the Excel file and imports data
@@ -166,6 +168,22 @@ func parseExcelFile(filePath string) (*ImportResult, error) {
 					db.Create(general)
 				}
 				result.InitialNormalCount++
+			}
+		}
+	}
+
+	// 8. Parse auction pool from "拍卖" sheet
+	if rows, err := f.GetRows("拍卖"); err == nil && len(rows) > 1 {
+		for _, row := range rows[1:] { // Skip header row
+			general := parseInitialDrawGeneralRow(row, "auction")
+			if general != nil {
+				var existing model.General
+				if db.Where("excel_id = ?", general.ExcelID).First(&existing).Error == nil {
+					db.Model(&existing).Updates(general)
+				} else {
+					db.Create(general)
+				}
+				result.AuctionCount++
 			}
 		}
 	}

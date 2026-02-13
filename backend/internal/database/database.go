@@ -65,6 +65,7 @@ func migrate() error {
 		&model.TradeLog{},
 		&model.InviteCode{},
 		&model.InviteCodeUsage{},
+		&model.AuctionRecord{},
 	)
 }
 

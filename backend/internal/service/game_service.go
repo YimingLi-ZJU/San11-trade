@@ -185,6 +185,12 @@ func ResetSeason() error {
 		return err
 	}
 
+	// Clear auction records
+	if err := tx.Exec("DELETE FROM auction_records").Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
 	// Reset game phase
 	if err := tx.Model(&model.GamePhase{}).Where("id = 1").Updates(map[string]interface{}{
 		"current_phase": "signup",

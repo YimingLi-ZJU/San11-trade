@@ -164,6 +164,11 @@ func SetupRouter() *gin.Engine {
 				game.POST("/trades/:id/accept", AcceptTrade)
 				game.POST("/trades/:id/reject", RejectTrade)
 				game.POST("/trades/:id/cancel", CancelTrade)
+
+				// Auction routes
+				game.GET("/auction/pool", GetAuctionPool)
+				game.GET("/auction/results", GetAuctionResults)
+				game.GET("/auction/stats", GetAuctionStats)
 			}
 
 			// Sign up (doesn't require previous registration)
@@ -191,6 +196,11 @@ func SetupRouter() *gin.Engine {
 			admin.POST("/draw/reset-all", AdminResetAllDraw)
 			admin.POST("/draw/for/:userId", AdminDrawForUser)
 			admin.POST("/draw/for-all", AdminDrawForAll)
+
+			// Auction management
+			admin.GET("/auction/stats", GetAuctionStats)
+			admin.POST("/auction/assign", AssignAuction)
+			admin.POST("/auction/reset/:generalId", ResetAuction)
 		}
 	}
 

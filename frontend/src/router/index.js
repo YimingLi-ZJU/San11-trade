@@ -70,6 +70,11 @@ const routes = [
         component: () => import('../views/Draw.vue')
       },
       {
+        path: 'auction',
+        name: 'Auction',
+        component: () => import('../views/Auction.vue')
+      },
+      {
         path: 'draft',
         name: 'Draft',
         component: () => import('../views/Draft.vue')

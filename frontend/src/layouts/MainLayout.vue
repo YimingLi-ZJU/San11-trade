@@ -55,6 +55,9 @@
             <el-menu-item index="/draw">
               <el-icon><MagicStick /></el-icon>抽将
             </el-menu-item>
+            <el-menu-item index="/auction">
+              <el-icon><Sell /></el-icon>拍卖
+            </el-menu-item>
             <el-menu-item index="/draft">
               <el-icon><Select /></el-icon>选秀
             </el-menu-item>

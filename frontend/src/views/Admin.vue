@@ -19,9 +19,9 @@
               <el-select v-model="newPhase" placeholder="选择阶段" style="width: 100%">
                 <el-option label="报名阶段" value="signup" />
                 <el-option label="抽将阶段" value="draw" />
+                <el-option label="拍卖阶段" value="auction" />
                 <el-option label="选秀阶段" value="draft" />
                 <el-option label="自由交易" value="trading" />
-                <el-option label="拍卖阶段" value="auction" />
                 <el-option label="比赛阶段" value="match" />
                 <el-option label="赛季结束" value="finished" />
               </el-select>
@@ -346,17 +346,120 @@
             </el-table-column>
           </el-table>
         </el-tab-pane>
+
+        <!-- Auction Management -->
+        <el-tab-pane label="拍卖管理" name="auction">
+          <el-alert type="info" :closable="false" style="margin-bottom: 20px">
+            <template #title>拍卖管理说明</template>
+            <p>• 拍卖武将在线下进行，此处用于录入拍卖结果</p>
+            <p>• 指定武将归属的玩家和成交价，系统会自动扣减玩家空间</p>
+            <p>• 流拍的武将可以不指定玩家</p>
+          </el-alert>
+
+          <!-- Stats -->
+          <el-row :gutter="20" class="auction-stats" v-if="auctionStats">
+            <el-col :span="6">
+              <el-statistic title="总拍卖武将" :value="auctionStats.total_generals" />
+            </el-col>
+            <el-col :span="6">
+              <el-statistic title="已成交" :value="auctionStats.sold">
+                <template #suffix>
+                  <el-icon color="#67c23a"><CircleCheck /></el-icon>
+                </template>
+              </el-statistic>
+            </el-col>
+            <el-col :span="6">
+              <el-statistic title="流拍" :value="auctionStats.unsold" />
+            </el-col>
+            <el-col :span="6">
+              <el-statistic title="待拍卖" :value="auctionStats.pending" />
+            </el-col>
+          </el-row>
+
+          <el-divider />
+
+          <!-- Assign Auction Form -->
+          <el-card shadow="hover" style="margin-bottom: 20px">
+            <template #header><span>录入拍卖结果</span></template>
+            <el-form :model="auctionForm" label-width="100px" style="max-width: 600px">
+              <el-form-item label="拍卖武将">
+                <el-select v-model="auctionForm.general_id" placeholder="选择武将" style="width: 100%" filterable>
+                  <el-option
+                    v-for="general in availableAuctionGenerals"
+                    :key="general.id"
+                    :label="`${general.name} (底价: ${general.salary})`"
+                    :value="general.id"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="归属玩家">
+                <el-select v-model="auctionForm.user_id" placeholder="选择玩家（留空为流拍）" style="width: 100%" filterable clearable>
+                  <el-option
+                    v-for="player in registeredPlayers"
+                    :key="player.id"
+                    :label="`${player.nickname} (剩余空间: ${player.space - player.used_space})`"
+                    :value="player.id"
+                  />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="成交价">
+                <el-input-number v-model="auctionForm.price" :min="0" :disabled="!auctionForm.user_id" />
+                <span class="form-tip">留空将使用武将底价</span>
+              </el-form-item>
+              <el-form-item label="备注">
+                <el-input v-model="auctionForm.remark" placeholder="可选" />
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" @click="handleAssignAuction" :loading="assigningAuction" :disabled="!auctionForm.general_id">
+                  录入拍卖
+                </el-button>
+              </el-form-item>
+            </el-form>
+          </el-card>
+
+          <!-- Auction Results Table -->
+          <el-table :data="auctionResults" stripe v-loading="loadingAuction">
+            <el-table-column prop="general_name" label="武将" width="100" />
+            <el-table-column prop="salary" label="底价" width="80" />
+            <el-table-column label="归属" width="120">
+              <template #default="{ row }">
+                <el-tag v-if="row.is_unsold" type="info" size="small">流拍</el-tag>
+                <el-tag v-else-if="row.user_id" type="success" size="small">{{ row.nickname }}</el-tag>
+                <el-tag v-else type="warning" size="small">待拍卖</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="成交价" width="80">
+              <template #default="{ row }">
+                {{ row.user_id ? row.price : '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="remark" label="备注" />
+            <el-table-column label="操作" width="100" fixed="right">
+              <template #default="{ row }">
+                <el-popconfirm
+                  v-if="row.user_id || row.is_unsold"
+                  title="确定要重置此拍卖记录吗？"
+                  @confirm="handleResetAuction(row.general_id)"
+                >
+                  <template #reference>
+                    <el-button type="danger" link size="small">重置</el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
       </el-tabs>
     </el-card>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { CircleCheck, CopyDocument } from '@element-plus/icons-vue'
 import { useGameStore } from '../stores/game'
-import { adminApi, gameApi } from '../api'
+import { adminApi, gameApi, auctionApi } from '../api'
 
 const gameStore = useGameStore()
 
@@ -382,6 +485,19 @@ const resettingAllDraw = ref(false)
 const drawingForAll = ref(false)
 const showDrawResult = ref(false)
 const drawResultData = ref(null)
+
+// Auction management state
+const auctionGenerals = ref([])
+const auctionResults = ref([])
+const auctionStats = ref(null)
+const loadingAuction = ref(false)
+const assigningAuction = ref(false)
+const auctionForm = reactive({
+  general_id: null,
+  user_id: null,
+  price: 0,
+  remark: ''
+})
 
 // Invite code state
 const inviteCodes = ref([])
@@ -421,6 +537,7 @@ async function loadData() {
   loadInviteCodes()
   loadInviteStats()
   loadRegisteredPlayers()
+  loadAuctionData()
 }
 
 async function loadRegisteredPlayers() {
@@ -632,6 +749,73 @@ function getStatusText(status) {
 function formatTime(time) {
   return new Date(time).toLocaleString('zh-CN')
 }
+
+// Auction functions
+
+const availableAuctionGenerals = computed(() => {
+  // Filter generals that haven't been auctioned yet
+  const auctionedIds = new Set(auctionResults.value.filter(r => r.user_id || r.is_unsold).map(r => r.general_id))
+  return auctionGenerals.value.filter(g => !auctionedIds.has(g.id))
+})
+
+async function loadAuctionData() {
+  loadingAuction.value = true
+  try {
+    const [poolRes, resultsRes, statsRes] = await Promise.all([
+      auctionApi.getPool(),
+      auctionApi.getResults(),
+      adminApi.getAuctionStats()
+    ])
+    auctionGenerals.value = poolRes.data || []
+    auctionResults.value = resultsRes.data || []
+    auctionStats.value = statsRes.data
+  } catch (error) {
+    console.error('Failed to load auction data:', error)
+  } finally {
+    loadingAuction.value = false
+  }
+}
+
+async function handleAssignAuction() {
+  if (!auctionForm.general_id) return
+  
+  assigningAuction.value = true
+  try {
+    const data = {
+      general_id: auctionForm.general_id,
+      user_id: auctionForm.user_id || null,
+      price: auctionForm.price,
+      remark: auctionForm.remark
+    }
+    await adminApi.assignAuction(data)
+    ElMessage.success(auctionForm.user_id ? '拍卖录入成功' : '流拍记录成功')
+    
+    // Reset form
+    auctionForm.general_id = null
+    auctionForm.user_id = null
+    auctionForm.price = 0
+    auctionForm.remark = ''
+    
+    // Reload data
+    await loadAuctionData()
+    await loadRegisteredPlayers()  // Reload players to update space
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '录入失败')
+  } finally {
+    assigningAuction.value = false
+  }
+}
+
+async function handleResetAuction(generalId) {
+  try {
+    await adminApi.resetAuction(generalId)
+    ElMessage.success('拍卖记录已重置')
+    await loadAuctionData()
+    await loadRegisteredPlayers()
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '重置失败')
+  }
+}
 </script>
 
 <style scoped>
@@ -686,5 +870,9 @@ function formatTime(time) {
 
 .code-text:hover {
   color: #409eff;
+}
+
+.auction-stats {
+  margin-bottom: 20px;
 }
 </style>
