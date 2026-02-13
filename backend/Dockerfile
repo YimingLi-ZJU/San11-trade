@@ -3,8 +3,8 @@ FROM golang:1.21-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
-RUN apk add --no-cache gcc musl-dev
+# Install dependencies for CGO and SQLite compilation
+RUN apk add --no-cache gcc musl-dev sqlite-dev
 
 # Copy go mod files
 COPY go.mod go.sum ./
@@ -13,8 +13,11 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build
-RUN CGO_ENABLED=1 GOOS=linux go build -o server ./cmd/server
+# Build with musl-compatible flags for go-sqlite3
+# -D_LARGEFILE64_SOURCE enables 64-bit file I/O compatibility in musl
+RUN CGO_ENABLED=1 GOOS=linux \
+    CGO_CFLAGS="-D_LARGEFILE64_SOURCE" \
+    go build -o server ./cmd/server
 
 # Runtime stage
 FROM alpine:3.19
