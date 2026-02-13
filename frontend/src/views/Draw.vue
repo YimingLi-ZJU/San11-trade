@@ -1,121 +1,211 @@
 <template>
   <div class="draw-page">
-    <el-card>
+    <!-- My Draw Status -->
+    <el-card class="status-card">
       <template #header>
         <div class="card-header">
-          <span>抽将</span>
-          <el-tag :type="phaseType">{{ phaseText }}</el-tag>
+          <span>我的抽将</span>
+          <el-tag :type="statusTagType" size="large">
+            {{ gameStore.getPhaseName(phase?.current_phase) }}
+          </el-tag>
         </div>
       </template>
 
-      <el-alert
-        v-if="!canDraw"
-        type="warning"
-        title="当前不在抽将阶段"
-        description="请等待管理员开启抽将阶段"
-        show-icon
-        :closable="false"
-        style="margin-bottom: 20px"
-      />
-
-      <el-row :gutter="40">
-        <!-- Guarantee Draw -->
-        <el-col :span="12">
-          <div class="draw-section">
-            <h3>保底抽将</h3>
-            <p class="description">保底池武将，三抽必出高阶武将</p>
-            <div class="draw-count">
-              已抽次数：{{ guaranteeCount }} / 3
-            </div>
-            <el-button
-              type="primary"
-              size="large"
-              :disabled="!canGuarantee"
-              :loading="drawing === 'guarantee'"
-              @click="handleDraw('guarantee')"
-              style="width: 100%; margin-top: 16px"
-            >
-              保底抽将
-            </el-button>
-          </div>
+      <el-row :gutter="20">
+        <el-col :span="8">
+          <el-statistic title="保底剩余" :value="status?.guarantee_remaining || 0">
+            <template #suffix>
+              <span class="stat-total"> / 3</span>
+            </template>
+          </el-statistic>
         </el-col>
-
-        <!-- Normal Draw -->
-        <el-col :span="12">
-          <div class="draw-section">
-            <h3>普通抽将</h3>
-            <p class="description">普通池武将，随机获得一名武将</p>
-            <div class="draw-count">
-              已抽次数：{{ normalCount }} / 7
-            </div>
-            <el-button
-              type="success"
-              size="large"
-              :disabled="!canNormal"
-              :loading="drawing === 'normal'"
-              @click="handleDraw('normal')"
-              style="width: 100%; margin-top: 16px"
-            >
-              普通抽将
-            </el-button>
-          </div>
+        <el-col :span="8">
+          <el-statistic title="普通剩余" :value="status?.normal_remaining || 0">
+            <template #suffix>
+              <span class="stat-total"> / 7</span>
+            </template>
+          </el-statistic>
+        </el-col>
+        <el-col :span="8">
+          <el-statistic title="总计剩余" :value="status?.total_remaining || 0">
+            <template #suffix>
+              <span class="stat-total"> / 10</span>
+            </template>
+          </el-statistic>
         </el-col>
       </el-row>
 
-      <!-- Draw Result -->
-      <el-dialog v-model="showResult" title="抽将结果" width="400px" center>
-        <div class="draw-result" v-if="drawResult">
-          <div class="general-avatar">{{ drawResult.name[0] }}</div>
-          <h2>{{ drawResult.name }}</h2>
-          <el-tag :type="getTierType(drawResult.tier)" size="large">
-            T{{ drawResult.tier }}
-          </el-tag>
-          <div class="stats">
-            <div class="stat">
-              <span class="label">统率</span>
-              <span class="value">{{ drawResult.command }}</span>
-            </div>
-            <div class="stat">
-              <span class="label">武力</span>
-              <span class="value">{{ drawResult.force }}</span>
-            </div>
-            <div class="stat">
-              <span class="label">智力</span>
-              <span class="value">{{ drawResult.intelligence }}</span>
-            </div>
-            <div class="stat">
-              <span class="label">政治</span>
-              <span class="value">{{ drawResult.politics }}</span>
-            </div>
-            <div class="stat">
-              <span class="label">魅力</span>
-              <span class="value">{{ drawResult.charm }}</span>
-            </div>
-          </div>
-          <p class="skills" v-if="drawResult.skills">特技：{{ drawResult.skills }}</p>
+      <div class="draw-action">
+        <el-button 
+          type="primary" 
+          size="large"
+          :disabled="!canDraw"
+          :loading="drawing"
+          @click="handleDraw"
+        >
+          {{ drawButtonText }}
+        </el-button>
+        <div class="draw-tip">
+          <span v-if="status?.guarantee_remaining > 0">
+            下一抽：<el-tag type="danger">保底池</el-tag>
+          </span>
+          <span v-else-if="status?.normal_remaining > 0">
+            下一抽：<el-tag type="warning">普通池</el-tag>
+          </span>
         </div>
-      </el-dialog>
+      </div>
+    </el-card>
 
-      <!-- Draw History -->
-      <el-divider />
-      <h4>抽将记录</h4>
-      <el-table :data="drawRecords" stripe v-loading="loadingRecords">
-        <el-table-column prop="general.name" label="武将" width="100" />
-        <el-table-column prop="draw_type" label="类型" width="100">
+    <!-- Draw Result Dialog -->
+    <el-dialog v-model="showResult" title="抽将结果" width="500px" center>
+      <div v-if="lastDrawResult" class="draw-result">
+        <div class="general-avatar">
+          {{ lastDrawResult.name[0] }}
+        </div>
+        <h2>{{ lastDrawResult.name }}</h2>
+        <el-tag :type="lastDrawType === 'initial_guarantee' ? 'danger' : 'warning'" size="large">
+          {{ lastDrawType === 'initial_guarantee' ? '保底' : '普通' }}
+        </el-tag>
+        <div class="general-stats">
+          <el-row :gutter="10">
+            <el-col :span="8">统率：{{ lastDrawResult.command }}</el-col>
+            <el-col :span="8">武力：{{ lastDrawResult.force }}</el-col>
+            <el-col :span="8">智力：{{ lastDrawResult.intelligence }}</el-col>
+          </el-row>
+          <el-row :gutter="10" style="margin-top: 8px">
+            <el-col :span="8">政治：{{ lastDrawResult.politics }}</el-col>
+            <el-col :span="8">魅力：{{ lastDrawResult.charm }}</el-col>
+            <el-col :span="8">薪资：{{ lastDrawResult.salary }}</el-col>
+          </el-row>
+        </div>
+        <div class="general-skills" v-if="lastDrawResult.skills">
+          <el-tag v-for="skill in lastDrawResult.skills.split(' ')" :key="skill" size="small">
+            {{ skill }}
+          </el-tag>
+        </div>
+      </div>
+      <template #footer>
+        <el-button type="primary" @click="showResult = false">确定</el-button>
+        <el-button 
+          v-if="status?.total_remaining > 0" 
+          type="success" 
+          @click="handleDrawAgain"
+          :loading="drawing"
+        >
+          继续抽取
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- All Players Results -->
+    <el-card style="margin-top: 20px">
+      <template #header>
+        <div class="card-header">
+          <span>所有玩家抽将结果</span>
+          <el-button text type="primary" @click="loadResults">
+            <el-icon><Refresh /></el-icon> 刷新
+          </el-button>
+        </div>
+      </template>
+
+      <el-table :data="results" stripe v-loading="loadingResults" @row-click="expandRow">
+        <el-table-column type="expand">
           <template #default="{ row }">
-            <el-tag :type="row.draw_type === 'guarantee' ? 'warning' : 'success'">
-              {{ row.draw_type === 'guarantee' ? '保底' : '普通' }}
+            <div class="expand-content">
+              <el-tag 
+                v-for="general in row.generals" 
+                :key="general.id"
+                class="general-tag"
+              >
+                {{ general.name }} (薪资:{{ general.salary }})
+              </el-tag>
+              <el-empty v-if="!row.generals?.length" description="暂无武将" />
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="nickname" label="玩家" width="120" />
+        <el-table-column label="已抽取" width="100">
+          <template #default="{ row }">
+            {{ row.generals?.length || 0 }} / 10
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.draw_complete ? 'success' : 'warning'" size="small">
+              {{ row.draw_complete ? '已完成' : '进行中' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="general.salary" label="薪资" width="80" />
-        <el-table-column prop="general.skills" label="特技" />
-        <el-table-column prop="created_at" label="时间" width="180">
+        <el-table-column label="总薪资" width="100">
           <template #default="{ row }">
-            {{ formatTime(row.created_at) }}
+            {{ row.total_salary }}
+          </template>
+        </el-table-column>
+        <el-table-column label="武将预览">
+          <template #default="{ row }">
+            <div class="general-preview">
+              <el-tag 
+                v-for="general in row.generals?.slice(0, 5)" 
+                :key="general.id"
+                size="small"
+                style="margin-right: 4px"
+              >
+                {{ general.name }}
+              </el-tag>
+              <span v-if="row.generals?.length > 5" class="more-hint">
+                +{{ row.generals.length - 5 }}
+              </span>
+            </div>
           </template>
         </el-table-column>
       </el-table>
+    </el-card>
+
+    <!-- Pool Info (collapsible) -->
+    <el-card style="margin-top: 20px">
+      <template #header>
+        <div class="card-header">
+          <span>抽将池信息</span>
+          <el-button text @click="showPool = !showPool">
+            {{ showPool ? '收起' : '展开' }}
+          </el-button>
+        </div>
+      </template>
+
+      <div v-show="showPool">
+        <el-tabs v-model="poolTab">
+          <el-tab-pane label="保底池" name="guarantee">
+            <el-tag type="info" style="margin-bottom: 10px">
+              剩余 {{ pool?.guarantee?.length || 0 }} 名武将
+            </el-tag>
+            <el-table :data="pool?.guarantee || []" stripe max-height="400">
+              <el-table-column prop="name" label="姓名" width="100" />
+              <el-table-column prop="command" label="统率" width="80" />
+              <el-table-column prop="force" label="武力" width="80" />
+              <el-table-column prop="intelligence" label="智力" width="80" />
+              <el-table-column prop="politics" label="政治" width="80" />
+              <el-table-column prop="charm" label="魅力" width="80" />
+              <el-table-column prop="salary" label="薪资" width="80" />
+              <el-table-column prop="skills" label="特技" />
+            </el-table>
+          </el-tab-pane>
+          <el-tab-pane label="普通池" name="normal">
+            <el-tag type="info" style="margin-bottom: 10px">
+              剩余 {{ pool?.normal?.length || 0 }} 名武将
+            </el-tag>
+            <el-table :data="pool?.normal || []" stripe max-height="400">
+              <el-table-column prop="name" label="姓名" width="100" />
+              <el-table-column prop="command" label="统率" width="80" />
+              <el-table-column prop="force" label="武力" width="80" />
+              <el-table-column prop="intelligence" label="智力" width="80" />
+              <el-table-column prop="politics" label="政治" width="80" />
+              <el-table-column prop="charm" label="魅力" width="80" />
+              <el-table-column prop="salary" label="薪资" width="80" />
+              <el-table-column prop="skills" label="特技" />
+            </el-table>
+          </el-tab-pane>
+        </el-tabs>
+      </div>
     </el-card>
   </div>
 </template>
@@ -123,86 +213,130 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Refresh } from '@element-plus/icons-vue'
 import { useGameStore } from '../stores/game'
 import { useUserStore } from '../stores/user'
-import { drawApi, authApi } from '../api'
+import { drawApi } from '../api'
 
 const gameStore = useGameStore()
 const userStore = useUserStore()
 
-const drawing = ref(null)
+const phase = ref(null)
+const status = ref(null)
+const results = ref([])
+const pool = ref(null)
+const lastDrawResult = ref(null)
+const lastDrawType = ref('')
+
+const drawing = ref(false)
+const loadingResults = ref(false)
 const showResult = ref(false)
-const drawResult = ref(null)
-const drawRecords = ref([])
-const loadingRecords = ref(false)
+const showPool = ref(false)
+const poolTab = ref('guarantee')
 
-const guaranteeCount = computed(() => 
-  drawRecords.value.filter(r => r.draw_type === 'guarantee').length
-)
-const normalCount = computed(() =>
-  drawRecords.value.filter(r => r.draw_type === 'normal').length
-)
-
-const canDraw = computed(() =>
-  ['guarantee_draw', 'normal_draw'].includes(gameStore.phase?.current_phase)
-)
-const canGuarantee = computed(() =>
-  gameStore.phase?.current_phase === 'guarantee_draw' && guaranteeCount.value < 3
-)
-const canNormal = computed(() =>
-  gameStore.phase?.current_phase === 'normal_draw' && normalCount.value < 7
-)
-
-const phaseText = computed(() => gameStore.getPhaseName(gameStore.phase?.current_phase))
-const phaseType = computed(() => canDraw.value ? 'success' : 'info')
-
-onMounted(async () => {
-  await gameStore.fetchPhase()
-  await loadRecords()
+const canDraw = computed(() => {
+  return phase.value?.current_phase === 'draw' && 
+         status.value?.total_remaining > 0 &&
+         userStore.user?.is_registered
 })
 
-async function loadRecords() {
-  loadingRecords.value = true
+const statusTagType = computed(() => {
+  if (phase.value?.current_phase === 'draw') return 'success'
+  return 'info'
+})
+
+const drawButtonText = computed(() => {
+  if (!userStore.user?.is_registered) return '请先报名'
+  if (phase.value?.current_phase !== 'draw') return '非抽将阶段'
+  if (status.value?.total_remaining <= 0) return '已完成抽将'
+  return '抽取武将'
+})
+
+onMounted(async () => {
+  await Promise.all([
+    loadPhase(),
+    loadStatus(),
+    loadResults(),
+    loadPool()
+  ])
+})
+
+async function loadPhase() {
   try {
-    const response = await authApi.getMyDrawRecords()
-    drawRecords.value = response.data || []
+    await gameStore.fetchPhase()
+    phase.value = gameStore.phase
   } catch (error) {
-    console.error('Failed to load draw records:', error)
-  } finally {
-    loadingRecords.value = false
+    console.error('Failed to load phase:', error)
   }
 }
 
-async function handleDraw(type) {
-  drawing.value = type
+async function loadStatus() {
   try {
-    const api = type === 'guarantee' ? drawApi.guaranteeDraw : drawApi.normalDraw
-    const response = await api()
-    drawResult.value = response.data.general
+    const response = await drawApi.getStatus()
+    status.value = response.data
+  } catch (error) {
+    console.error('Failed to load status:', error)
+  }
+}
+
+async function loadResults() {
+  loadingResults.value = true
+  try {
+    const response = await drawApi.getResults()
+    results.value = response.data || []
+  } catch (error) {
+    console.error('Failed to load results:', error)
+  } finally {
+    loadingResults.value = false
+  }
+}
+
+async function loadPool() {
+  try {
+    const response = await drawApi.getPool()
+    pool.value = response.data
+  } catch (error) {
+    console.error('Failed to load pool:', error)
+  }
+}
+
+async function handleDraw() {
+  drawing.value = true
+  try {
+    const response = await drawApi.draw()
+    lastDrawResult.value = response.data.general
+    lastDrawType.value = response.data.draw_type
     showResult.value = true
-    await loadRecords()
-    await userStore.fetchUser()
-    ElMessage.success('抽将成功！')
+    
+    // Refresh data
+    await Promise.all([
+      loadStatus(),
+      loadResults(),
+      loadPool(),
+      userStore.fetchUser()
+    ])
+    
+    ElMessage.success('抽取成功！')
   } catch (error) {
-    ElMessage.error(error.response?.data?.error || '抽将失败')
+    ElMessage.error(error.response?.data?.error || '抽取失败')
   } finally {
-    drawing.value = null
+    drawing.value = false
   }
 }
 
-function getTierType(tier) {
-  const types = { 1: 'danger', 2: 'warning', 3: 'primary', 4: 'success', 5: 'info' }
-  return types[tier] || 'info'
+async function handleDrawAgain() {
+  showResult.value = false
+  await handleDraw()
 }
 
-function formatTime(time) {
-  return new Date(time).toLocaleString('zh-CN')
+function expandRow(row) {
+  // Auto expand on click
 }
 </script>
 
 <style scoped>
 .draw-page {
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -212,32 +346,28 @@ function formatTime(time) {
   align-items: center;
 }
 
-.draw-section {
+.status-card .el-statistic {
   text-align: center;
-  padding: 30px;
-  background: #f5f7fa;
-  border-radius: 12px;
 }
 
-.draw-section h3 {
-  margin-bottom: 12px;
-  color: #333;
-}
-
-.draw-section .description {
-  color: #666;
+.stat-total {
+  color: #909399;
   font-size: 14px;
 }
 
-.draw-count {
-  margin-top: 20px;
-  font-size: 18px;
-  font-weight: bold;
-  color: #667eea;
+.draw-action {
+  margin-top: 30px;
+  text-align: center;
+}
+
+.draw-tip {
+  margin-top: 10px;
+  color: #666;
 }
 
 .draw-result {
   text-align: center;
+  padding: 20px;
 }
 
 .draw-result .general-avatar {
@@ -246,43 +376,50 @@ function formatTime(time) {
   border-radius: 50%;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+  font-size: 36px;
+  font-weight: bold;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36px;
-  font-weight: bold;
   margin: 0 auto 16px;
 }
 
 .draw-result h2 {
-  margin-bottom: 12px;
-}
-
-.draw-result .stats {
-  display: flex;
-  justify-content: center;
-  gap: 16px;
-  margin-top: 20px;
-}
-
-.draw-result .stat {
-  text-align: center;
-}
-
-.draw-result .stat .label {
-  display: block;
-  font-size: 12px;
-  color: #999;
-}
-
-.draw-result .stat .value {
-  font-size: 20px;
-  font-weight: bold;
+  margin: 16px 0;
   color: #333;
 }
 
-.draw-result .skills {
+.general-stats {
+  margin: 20px 0;
+  padding: 16px;
+  background: #f5f7fa;
+  border-radius: 8px;
+}
+
+.general-skills {
   margin-top: 16px;
-  color: #666;
+}
+
+.general-skills .el-tag {
+  margin: 2px;
+}
+
+.expand-content {
+  padding: 20px;
+}
+
+.general-tag {
+  margin: 4px;
+}
+
+.general-preview {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.more-hint {
+  color: #909399;
+  font-size: 12px;
 }
 </style>

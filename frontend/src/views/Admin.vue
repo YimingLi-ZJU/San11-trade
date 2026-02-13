@@ -18,9 +18,7 @@
             <el-form-item label="切换阶段">
               <el-select v-model="newPhase" placeholder="选择阶段" style="width: 100%">
                 <el-option label="报名阶段" value="signup" />
-                <el-option label="初抽阶段" value="initial_draw" />
-                <el-option label="保底抽将" value="guarantee_draw" />
-                <el-option label="普通抽将" value="normal_draw" />
+                <el-option label="抽将阶段" value="draw" />
                 <el-option label="选秀阶段" value="draft" />
                 <el-option label="自由交易" value="trading" />
                 <el-option label="拍卖阶段" value="auction" />
@@ -229,6 +227,105 @@
           </el-descriptions>
         </el-tab-pane>
 
+        <!-- Draw Management -->
+        <el-tab-pane label="抽将管理" name="draw">
+          <el-alert type="info" :closable="false" style="margin-bottom: 20px">
+            <template #title>抽将管理说明</template>
+            <p>• 重置抽将：清除玩家的抽将记录，让其可以重新抽将</p>
+            <p>• 代替抽将：管理员代替指定玩家完成所有抽将</p>
+            <p>• 批量操作：对所有已报名玩家进行批量处理</p>
+          </el-alert>
+
+          <el-row :gutter="20">
+            <!-- Single user operation -->
+            <el-col :span="12">
+              <el-card shadow="hover">
+                <template #header><span>单个玩家操作</span></template>
+                <el-form label-width="100px">
+                  <el-form-item label="选择玩家">
+                    <el-select v-model="selectedUserId" placeholder="选择玩家" style="width: 100%" filterable>
+                      <el-option
+                        v-for="player in registeredPlayers"
+                        :key="player.id"
+                        :label="player.nickname"
+                        :value="player.id"
+                      />
+                    </el-select>
+                  </el-form-item>
+                  <el-form-item>
+                    <el-space>
+                      <el-popconfirm
+                        title="确定要重置该玩家的抽将记录吗？"
+                        @confirm="handleResetUserDraw"
+                      >
+                        <template #reference>
+                          <el-button type="warning" :disabled="!selectedUserId" :loading="resettingDraw">
+                            重置抽将
+                          </el-button>
+                        </template>
+                      </el-popconfirm>
+                      <el-popconfirm
+                        title="确定要为该玩家完成所有抽将吗？"
+                        @confirm="handleDrawForUser"
+                      >
+                        <template #reference>
+                          <el-button type="primary" :disabled="!selectedUserId" :loading="drawingForUser">
+                            代替抽将
+                          </el-button>
+                        </template>
+                      </el-popconfirm>
+                    </el-space>
+                  </el-form-item>
+                </el-form>
+              </el-card>
+            </el-col>
+
+            <!-- Batch operation -->
+            <el-col :span="12">
+              <el-card shadow="hover">
+                <template #header><span>批量操作</span></template>
+                <el-space direction="vertical" fill style="width: 100%">
+                  <el-popconfirm
+                    title="确定要重置所有玩家的抽将记录吗？这将影响所有已报名玩家！"
+                    @confirm="handleResetAllDraw"
+                  >
+                    <template #reference>
+                      <el-button type="danger" :loading="resettingAllDraw" style="width: 100%">
+                        重置所有玩家抽将
+                      </el-button>
+                    </template>
+                  </el-popconfirm>
+                  <el-popconfirm
+                    title="确定要为所有玩家完成抽将吗？这将影响所有已报名玩家！"
+                    @confirm="handleDrawForAll"
+                  >
+                    <template #reference>
+                      <el-button type="success" :loading="drawingForAll" style="width: 100%">
+                        为所有玩家抽将
+                      </el-button>
+                    </template>
+                  </el-popconfirm>
+                </el-space>
+              </el-card>
+            </el-col>
+          </el-row>
+
+          <!-- Draw result dialog -->
+          <el-dialog v-model="showDrawResult" title="抽将结果" width="600px">
+            <div v-if="drawResultData">
+              <p><strong>已抽取 {{ drawResultData.count || drawResultData.generals?.length }} 名武将</strong></p>
+              <el-table :data="drawResultData.generals" stripe max-height="400">
+                <el-table-column prop="name" label="姓名" width="100" />
+                <el-table-column prop="salary" label="薪资" width="80" />
+                <el-table-column prop="command" label="统率" width="60" />
+                <el-table-column prop="force" label="武力" width="60" />
+                <el-table-column prop="intelligence" label="智力" width="60" />
+                <el-table-column prop="skills" label="特技" />
+              </el-table>
+            </div>
+          </el-dialog>
+        </el-tab-pane>
+
         <!-- All Trades -->
         <el-tab-pane label="所有交易" name="trades">
           <el-table :data="allTrades" stripe v-loading="loadingTrades">
@@ -276,6 +373,16 @@ const resetting = ref(false)
 const importing = ref(false)
 const loadingTrades = ref(false)
 
+// Draw management state
+const registeredPlayers = ref([])
+const selectedUserId = ref(null)
+const resettingDraw = ref(false)
+const drawingForUser = ref(false)
+const resettingAllDraw = ref(false)
+const drawingForAll = ref(false)
+const showDrawResult = ref(false)
+const drawResultData = ref(null)
+
 // Invite code state
 const inviteCodes = ref([])
 const inviteStats = ref({})
@@ -313,6 +420,68 @@ async function loadData() {
   loadTrades()
   loadInviteCodes()
   loadInviteStats()
+  loadRegisteredPlayers()
+}
+
+async function loadRegisteredPlayers() {
+  try {
+    const response = await gameApi.getPlayers()
+    registeredPlayers.value = response.data || []
+  } catch (error) {
+    console.error('Failed to load players:', error)
+  }
+}
+
+async function handleResetUserDraw() {
+  if (!selectedUserId.value) return
+  resettingDraw.value = true
+  try {
+    await adminApi.resetUserDraw(selectedUserId.value)
+    ElMessage.success('玩家抽将记录已重置')
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '重置失败')
+  } finally {
+    resettingDraw.value = false
+  }
+}
+
+async function handleDrawForUser() {
+  if (!selectedUserId.value) return
+  drawingForUser.value = true
+  try {
+    const response = await adminApi.drawForUser(selectedUserId.value)
+    drawResultData.value = response.data
+    showDrawResult.value = true
+    ElMessage.success(`代抽完成，共抽取 ${response.data.count} 名武将`)
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '代抽失败')
+  } finally {
+    drawingForUser.value = false
+  }
+}
+
+async function handleResetAllDraw() {
+  resettingAllDraw.value = true
+  try {
+    const response = await adminApi.resetAllDraw()
+    ElMessage.success(`已重置 ${response.data.reset_count} 名玩家的抽将记录`)
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '批量重置失败')
+  } finally {
+    resettingAllDraw.value = false
+  }
+}
+
+async function handleDrawForAll() {
+  drawingForAll.value = true
+  try {
+    const response = await adminApi.drawForAll()
+    ElMessage.success(`批量抽将完成，共为 ${response.data.user_count} 名玩家抽取 ${response.data.total_count} 名武将`)
+  } catch (error) {
+    ElMessage.error(error.response?.data?.error || '批量抽将失败')
+  } finally {
+    drawingForAll.value = false
+  }
 }
 
 async function loadTrades() {

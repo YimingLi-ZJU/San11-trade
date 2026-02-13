@@ -65,11 +65,6 @@ const routes = [
         component: () => import('../views/PlayerDetail.vue')
       },
       {
-        path: 'initial-draw',
-        name: 'InitialDraw',
-        component: () => import('../views/InitialDraw.vue')
-      },
-      {
         path: 'draw',
         name: 'Draw',
         component: () => import('../views/Draw.vue')

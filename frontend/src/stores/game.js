@@ -32,9 +32,7 @@ export const useGameStore = defineStore('game', () => {
   // Phase display names
   const phaseNames = {
     signup: '报名阶段',
-    initial_draw: '初抽阶段',
-    guarantee_draw: '保底抽将',
-    normal_draw: '普通抽将',
+    draw: '抽将阶段',
     draft: '选秀阶段',
     trading: '自由交易',
     auction: '拍卖阶段',

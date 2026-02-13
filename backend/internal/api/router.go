@@ -146,16 +146,11 @@ func SetupRouter() *gin.Engine {
 			game := protected.Group("")
 			game.Use(RegisteredMiddleware())
 			{
-				// Draw routes
-				game.POST("/draw/guarantee", GuaranteeDraw)
-				game.POST("/draw/normal", NormalDraw)
-				game.GET("/draw/pool/:type", GetDrawPool)
-
-				// Initial draw routes
-				game.POST("/initial-draw", InitialDraw)
-				game.GET("/initial-draw/status", GetInitialDrawStatus)
-				game.GET("/initial-draw/results", GetAllInitialDrawResults)
-				game.GET("/initial-draw/pool", GetInitialDrawPool)
+				// Draw routes (unified)
+				game.POST("/draw", DrawOnce)
+				game.GET("/draw/status", GetDrawStatus)
+				game.GET("/draw/results", GetAllDrawResults)
+				game.GET("/draw/pool", GetDrawPoolHandler)
 
 				// Draft routes
 				game.GET("/draft/pool", GetDraftPool)
@@ -190,6 +185,12 @@ func SetupRouter() *gin.Engine {
 			admin.GET("/invite-codes/stats", GetInviteCodeStats)
 			admin.DELETE("/invite-codes/:id", DeleteInviteCode)
 			admin.GET("/invite-codes/:id/usages", GetInviteCodeUsages)
+
+			// Draw management
+			admin.POST("/draw/reset/:userId", AdminResetUserDraw)
+			admin.POST("/draw/reset-all", AdminResetAllDraw)
+			admin.POST("/draw/for/:userId", AdminDrawForUser)
+			admin.POST("/draw/for-all", AdminDrawForAll)
 		}
 	}
 

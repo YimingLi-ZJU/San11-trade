@@ -9,61 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GuaranteeDraw handles guarantee draw
-func GuaranteeDraw(c *gin.Context) {
-	userID := GetCurrentUserID(c)
-	general, err := service.GuaranteeDraw(userID)
-	if err != nil {
-		status := http.StatusBadRequest
-		if err == service.ErrNotInDrawPhase {
-			status = http.StatusForbidden
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "抽将成功",
-		"general": general,
-	})
-}
-
-// NormalDraw handles normal draw
-func NormalDraw(c *gin.Context) {
-	userID := GetCurrentUserID(c)
-	general, err := service.NormalDraw(userID)
-	if err != nil {
-		status := http.StatusBadRequest
-		if err == service.ErrNotInDrawPhase {
-			status = http.StatusForbidden
-		}
-		c.JSON(status, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "抽将成功",
-		"general": general,
-	})
-}
-
-// GetDrawPool returns available generals in a pool
-func GetDrawPool(c *gin.Context) {
-	poolType := c.Param("type")
-	if poolType != "guarantee" && poolType != "normal" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pool type"})
-		return
-	}
-
-	generals, err := service.GetAvailablePoolGenerals(poolType)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, generals)
-}
-
 // GetDraftPool returns available generals for draft
 func GetDraftPool(c *gin.Context) {
 	generals, err := service.GetDraftPool()

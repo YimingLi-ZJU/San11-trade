@@ -58,21 +58,15 @@ export const gameApi = {
   getRegistrationConfig: () => api.get('/config/registration')
 }
 
-// Draw APIs
+// Draw APIs (unified)
 export const drawApi = {
-  guaranteeDraw: () => api.post('/draw/guarantee'),
-  normalDraw: () => api.post('/draw/normal'),
-  getDrawPool: (type) => api.get(`/draw/pool/${type}`),
+  draw: () => api.post('/draw'),
+  getStatus: () => api.get('/draw/status'),
+  getResults: () => api.get('/draw/results'),
+  getPool: (type) => api.get(`/draw/pool${type ? '?type=' + type : ''}`),
+  // Draft
   getDraftPool: () => api.get('/draft/pool'),
   draftPick: (generalId) => api.post('/draft/pick', { general_id: generalId })
-}
-
-// Initial Draw APIs
-export const initialDrawApi = {
-  draw: () => api.post('/initial-draw'),
-  getStatus: () => api.get('/initial-draw/status'),
-  getResults: () => api.get('/initial-draw/results'),
-  getPool: (type) => api.get(`/initial-draw/pool${type ? '?type=' + type : ''}`)
 }
 
 // Asset APIs
@@ -112,7 +106,12 @@ export const adminApi = {
   getInviteCodes: (page = 1, pageSize = 20) => api.get(`/admin/invite-codes?page=${page}&page_size=${pageSize}`),
   getInviteCodeStats: () => api.get('/admin/invite-codes/stats'),
   deleteInviteCode: (id) => api.delete(`/admin/invite-codes/${id}`),
-  getInviteCodeUsages: (id) => api.get(`/admin/invite-codes/${id}/usages`)
+  getInviteCodeUsages: (id) => api.get(`/admin/invite-codes/${id}/usages`),
+  // Draw management
+  resetUserDraw: (userId) => api.post(`/admin/draw/reset/${userId}`),
+  resetAllDraw: () => api.post('/admin/draw/reset-all'),
+  drawForUser: (userId) => api.post(`/admin/draw/for/${userId}`),
+  drawForAll: () => api.post('/admin/draw/for-all')
 }
 
 // Invite code APIs (public)

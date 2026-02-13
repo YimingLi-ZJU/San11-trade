@@ -31,15 +31,13 @@ func SetGamePhase(phaseName string, roundNumber int, draftRound int) error {
 	db := database.GetDB()
 
 	validPhases := map[string]bool{
-		"signup":         true,
-		"initial_draw":   true,
-		"guarantee_draw": true,
-		"normal_draw":    true,
-		"draft":          true,
-		"trading":        true,
-		"auction":        true,
-		"match":          true,
-		"finished":       true,
+		"signup":   true,
+		"draw":     true,
+		"draft":    true,
+		"trading":  true,
+		"auction":  true,
+		"match":    true,
+		"finished": true,
 	}
 
 	if !validPhases[phaseName] {
