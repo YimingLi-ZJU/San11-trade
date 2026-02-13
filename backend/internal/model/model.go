@@ -28,24 +28,29 @@ type User struct {
 // General represents a warrior/general in the game
 type General struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
-	ExcelID      int       `gorm:"uniqueIndex" json:"excel_id"` // Original ID from Excel
+	ExcelID      int       `gorm:"uniqueIndex" json:"excel_id"` // Original ID from Excel (序号)
 	Name         string    `gorm:"size:50;not null" json:"name"`
-	Command      int       `json:"command"`                  // 统率
-	Force        int       `json:"force"`                    // 武力
-	Intelligence int       `json:"intelligence"`             // 智力
-	Politics     int       `json:"politics"`                 // 政治
-	Charm        int       `json:"charm"`                    // 魅力
-	Salary       int       `json:"salary"`                   // 薪资/空间占用
-	PoolType     string    `gorm:"size:20" json:"pool_type"` // guarantee/normal/draft/second/bigcore
-	Tier         int       `json:"tier"`                     // Tier level (1-5)
-	Skills       string    `gorm:"size:255" json:"skills"`   // Comma-separated skills
-	Spear        string    `gorm:"size:10" json:"spear"`     // 枪适性
-	Halberd      string    `gorm:"size:10" json:"halberd"`   // 戟适性
-	Crossbow     string    `gorm:"size:10" json:"crossbow"`  // 弩适性
-	Cavalry      string    `gorm:"size:10" json:"cavalry"`   // 骑适性
-	Soldier      string    `gorm:"size:10" json:"soldier"`   // 兵适性
-	Affinity     int       `json:"affinity"`                 // 相性
-	OwnerID      *uint     `json:"owner_id"`                 // Current owner
+	Command      int       `json:"command"`                    // 统率
+	Force        int       `json:"force"`                      // 武力
+	Intelligence int       `json:"intelligence"`               // 智力
+	Politics     int       `json:"politics"`                   // 政治
+	Charm        int       `json:"charm"`                      // 魅力
+	Salary       int       `json:"salary"`                     // 薪资/价值
+	Affinity     int       `json:"affinity"`                   // 相性
+	Spear        string    `gorm:"size:10" json:"spear"`       // 枪适性
+	Halberd      string    `gorm:"size:10" json:"halberd"`     // 戟适性
+	Crossbow     string    `gorm:"size:10" json:"crossbow"`    // 弩适性
+	Cavalry      string    `gorm:"size:10" json:"cavalry"`     // 骑适性
+	Soldier      string    `gorm:"size:10" json:"soldier"`     // 兵适性
+	Water        string    `gorm:"size:10" json:"water"`       // 水适性
+	Skills       string    `gorm:"size:255" json:"skills"`     // 特技
+	Morality     string    `gorm:"size:20" json:"morality"`    // 义理
+	Ambition     string    `gorm:"size:20" json:"ambition"`    // 野望
+	Personality  string    `gorm:"size:20" json:"personality"` // 性格
+	Note         string    `gorm:"size:500" json:"note"`       // 改动说明
+	PoolType     string    `gorm:"size:20" json:"pool_type"`   // guarantee/normal/draft/second/bigcore
+	Tier         int       `json:"tier"`                       // Tier level (1-5)
+	OwnerID      *uint     `json:"owner_id"`                   // Current owner
 	Owner        *User     `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
 	IsAvailable  bool      `gorm:"default:true" json:"is_available"` // Available in pool
 	InjuredUntil *int      `json:"injured_until"`                    // Injured until round X
@@ -58,10 +63,10 @@ type Treasure struct {
 	ID          uint      `gorm:"primaryKey" json:"id"`
 	ExcelID     int       `gorm:"uniqueIndex" json:"excel_id"` // Original ID from Excel
 	Name        string    `gorm:"size:50;not null" json:"name"`
-	Type        string    `gorm:"size:20" json:"type"`    // weapon/book/horse/accessory
-	Value       int       `json:"value"`                  // Value/price
-	Effect      string    `gorm:"size:255" json:"effect"` // Effect description (如 统+5)
-	Skill       string    `gorm:"size:50" json:"skill"`   // Special skill granted (特技)
+	Type        string    `gorm:"size:20" json:"type"`    // 种类 (短柄/书籍/九鼎等)
+	Value       int       `json:"value"`                  // 价值
+	Effect      string    `gorm:"size:255" json:"effect"` // 属性效果 (如 统+5)
+	Skill       string    `gorm:"size:50" json:"skill"`   // 特技
 	OwnerID     *uint     `json:"owner_id"`               // Current owner
 	Owner       *User     `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
 	IsAvailable bool      `gorm:"default:true" json:"is_available"`
@@ -69,17 +74,55 @@ type Treasure struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// City represents a city/location in the game
+type City struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	ExcelID     int       `json:"excel_id"`                     // 序号
+	Name        string    `gorm:"size:50;not null" json:"name"` // 城市名称
+	Specialty   string    `gorm:"size:20" json:"specialty"`     // 特产 (马/工/弩等)
+	MaxSoldiers int       `json:"max_soldiers"`                 // 最大士兵
+	GoldIncome  int       `json:"gold_income"`                  // 金收入
+	FoodIncome  int       `json:"food_income"`                  // 粮收入
+	Durability  int       `json:"durability"`                   // 耐久
+	Tiles       int       `json:"tiles"`                        // 地块数
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 // Club represents a club/faction with its policy
 type Club struct {
 	ID          uint      `gorm:"primaryKey" json:"id"`
-	Name        string    `gorm:"size:50;not null" json:"name"`
-	Description string    `gorm:"size:500" json:"description"`
-	Policy      string    `gorm:"type:text" json:"policy"` // Policy description in JSON or text
-	BasePrice   int       `json:"base_price"`              // Base price for auction
-	OwnerID     *uint     `json:"owner_id"`                // Current owner
+	ExcelID     int       `json:"excel_id"`                                    // 序号 from Excel
+	Name        string    `gorm:"size:50;not null" json:"name"`                // 俱乐部名称
+	Description string    `gorm:"size:500" json:"description"`                 // 基础效果
+	Policies    []Policy  `gorm:"foreignKey:ClubID" json:"policies,omitempty"` // 国策列表
+	BasePrice   int       `json:"base_price"`                                  // Base price for auction
+	OwnerID     *uint     `json:"owner_id"`                                    // Current owner
 	Owner       *User     `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// Policy represents a single policy/strategy of a club
+type Policy struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	ClubID    uint      `gorm:"not null;index" json:"club_id"` // 所属俱乐部
+	SortOrder int       `json:"sort_order"`                    // 排序顺序
+	Condition string    `gorm:"size:500" json:"condition"`     // 条件 (空表示无条件/基础效果)
+	Effect    string    `gorm:"size:500" json:"effect"`        // 效果
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// GameRule represents game rules from the rules sheet
+type GameRule struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Category  string    `gorm:"size:50" json:"category"`  // 分类 (游戏顺序/小组赛/淘汰赛/资源消耗等)
+	Title     string    `gorm:"size:100" json:"title"`    // 标题/事件
+	Content   string    `gorm:"type:text" json:"content"` // 详细内容
+	SortOrder int       `json:"sort_order"`               // 排序
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // Trade represents a trade proposal between two players

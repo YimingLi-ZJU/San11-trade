@@ -73,7 +73,10 @@ export const assetApi = {
   getAllTreasures: () => api.get('/treasures'),
   getTreasure: (id) => api.get(`/treasures/${id}`),
   getAllClubs: () => api.get('/clubs'),
-  getClub: (id) => api.get(`/clubs/${id}`)
+  getClub: (id) => api.get(`/clubs/${id}`),
+  getClubDetail: (id) => api.get(`/clubs/${id}/detail`),
+  getAllCities: () => api.get('/cities'),
+  getGameRules: () => api.get('/rules')
 }
 
 // Trade APIs

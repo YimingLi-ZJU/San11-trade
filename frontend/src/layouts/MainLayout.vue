@@ -80,6 +80,12 @@
             <el-menu-item index="/clubs">
               <el-icon><Flag /></el-icon>俱乐部
             </el-menu-item>
+            <el-menu-item index="/cities">
+              <el-icon><OfficeBuilding /></el-icon>城市列表
+            </el-menu-item>
+            <el-menu-item index="/rules">
+              <el-icon><Document /></el-icon>游戏规则
+            </el-menu-item>
           </el-sub-menu>
           
           <el-menu-item index="/players">

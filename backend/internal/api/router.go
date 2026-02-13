@@ -122,6 +122,9 @@ func SetupRouter() *gin.Engine {
 		api.GET("/treasures/:id", GetTreasureByID)
 		api.GET("/clubs", GetAllClubs)
 		api.GET("/clubs/:id", GetClubByID)
+		api.GET("/clubs/:id/detail", GetClubDetail) // Club with policies
+		api.GET("/cities", GetCities)               // City list
+		api.GET("/rules", GetGameRules)             // Game rules
 		api.GET("/players", GetRegisteredPlayers)
 		api.GET("/players/:id/roster", GetPlayerRoster)
 		api.GET("/statistics", GetStatistics)

@@ -3,7 +3,7 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <span>武将列表</span>
+          <span>武将列表 ({{ filteredGenerals.length }})</span>
           <el-input
             v-model="searchText"
             placeholder="搜索武将..."
@@ -17,33 +17,42 @@
       <el-table
         :data="filteredGenerals"
         stripe
-        :default-sort="{ prop: 'tier', order: 'ascending' }"
+        :default-sort="{ prop: 'excel_id', order: 'ascending' }"
         v-loading="loading"
+        max-height="700"
       >
-        <el-table-column prop="name" label="姓名" width="100" fixed />
-        <el-table-column label="档次" width="80" sortable prop="tier">
+        <el-table-column prop="excel_id" label="序号" width="70" sortable fixed />
+        <el-table-column prop="name" label="姓名" width="90" fixed />
+        <el-table-column prop="salary" label="价值" width="65" sortable />
+        <el-table-column prop="command" label="统" width="55" sortable />
+        <el-table-column prop="force" label="武" width="55" sortable />
+        <el-table-column prop="intelligence" label="智" width="55" sortable />
+        <el-table-column prop="politics" label="政" width="55" sortable />
+        <el-table-column prop="charm" label="魅" width="55" sortable />
+        <el-table-column prop="affinity" label="相性" width="65" sortable />
+        <el-table-column label="兵种适性" width="180">
           <template #default="{ row }">
-            <el-tag :type="getTierType(row.tier)">T{{ row.tier }}</el-tag>
+            <span class="aptitude">
+              <span title="枪">{{ row.spear || '-' }}</span>
+              <span title="戟">{{ row.halberd || '-' }}</span>
+              <span title="弩">{{ row.crossbow || '-' }}</span>
+              <span title="骑">{{ row.cavalry || '-' }}</span>
+              <span title="兵">{{ row.soldier || '-' }}</span>
+              <span title="水">{{ row.water || '-' }}</span>
+            </span>
           </template>
         </el-table-column>
-        <el-table-column prop="command" label="统率" width="80" sortable />
-        <el-table-column prop="force" label="武力" width="80" sortable />
-        <el-table-column prop="intelligence" label="智力" width="80" sortable />
-        <el-table-column prop="politics" label="政治" width="80" sortable />
-        <el-table-column prop="charm" label="魅力" width="80" sortable />
-        <el-table-column prop="salary" label="薪资" width="80" sortable />
-        <el-table-column prop="skills" label="特技" min-width="150" />
-        <el-table-column label="归属" width="120">
+        <el-table-column prop="skills" label="特技" min-width="120" show-overflow-tooltip />
+        <el-table-column prop="morality" label="义理" width="80" />
+        <el-table-column prop="ambition" label="野望" width="65" />
+        <el-table-column prop="personality" label="性格" width="65" />
+        <el-table-column label="归属" width="100">
           <template #default="{ row }">
-            <el-tag v-if="row.owner" type="success">{{ row.owner.nickname }}</el-tag>
-            <el-tag v-else type="info">未归属</el-tag>
+            <el-tag v-if="row.owner" type="success" size="small">{{ row.owner.nickname }}</el-tag>
+            <span v-else class="no-owner">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="池类型" width="100">
-          <template #default="{ row }">
-            <el-tag type="warning">{{ getPoolName(row.pool_type) }}</el-tag>
-          </template>
-        </el-table-column>
+        <el-table-column prop="note" label="改动说明" width="150" show-overflow-tooltip />
       </el-table>
     </el-card>
   </div>
@@ -62,7 +71,8 @@ const filteredGenerals = computed(() => {
   const text = searchText.value.toLowerCase()
   return generals.value.filter(g =>
     g.name.toLowerCase().includes(text) ||
-    g.skills?.toLowerCase().includes(text)
+    g.skills?.toLowerCase().includes(text) ||
+    g.note?.toLowerCase().includes(text)
   )
 })
 
@@ -77,27 +87,11 @@ onMounted(async () => {
     loading.value = false
   }
 })
-
-function getTierType(tier) {
-  const types = { 1: 'danger', 2: 'warning', 3: 'primary', 4: 'success', 5: 'info' }
-  return types[tier] || 'info'
-}
-
-function getPoolName(poolType) {
-  const names = {
-    guarantee: '保底',
-    normal: '普通',
-    draft: '选秀',
-    second: '二抽',
-    bigcore: '大核'
-  }
-  return names[poolType] || poolType
-}
 </script>
 
 <style scoped>
 .generals-page {
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
 }
 
@@ -105,5 +99,20 @@ function getPoolName(poolType) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.aptitude {
+  display: flex;
+  gap: 8px;
+  font-family: monospace;
+}
+
+.aptitude span {
+  min-width: 16px;
+  text-align: center;
+}
+
+.no-owner {
+  color: #999;
 }
 </style>
