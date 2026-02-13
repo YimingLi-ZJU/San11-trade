@@ -42,13 +42,10 @@ func main() {
 	// Create admin user if requested
 	if *createAdmin {
 		if err := service.CreateAdmin(*adminUser, *adminPass); err != nil {
-			log.Printf("Failed to create admin: %v", err)
-		} else {
-			log.Printf("Admin user '%s' created/updated successfully", *adminUser)
+			log.Fatalf("Failed to create admin: %v", err)
 		}
-		if !*createAdmin {
-			os.Exit(0)
-		}
+		log.Printf("Admin user '%s' created/updated successfully", *adminUser)
+		os.Exit(0) // Exit after creating admin, don't start HTTP server
 	}
 
 	// Setup router
